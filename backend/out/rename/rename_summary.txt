@@ -1,0 +1,30 @@
+RENAME SUMMARY
+================================================================================
+
+PLAN
+n_cases               : 36
+n_candidates          : 216
+n_datetimes_found     : 36
+n_complete_cases      : 36
+n_renames             : 216
+
+DIAGNOSTICS
+rows                  : 36
+complete              : 36
+missing               : 0
+incomplete            : 0
+
+OUT_WN
+path                  : C:\TFG\datos\Corredoria_Grado_1_y_2\OUT_WN
+n_files               : 216
+n_timestamps          : 36
+ext_counter           : {'.asc': 108, '.prj': 108}
+timestamp_distribution: {6: 36}
+
+OUT_WN_REN
+path                  : C:\TFG\datos\Corredoria_Grado_1_y_2\OUT_WN_REN
+n_files               : 432
+n_timestamps          : 0
+ext_counter           : {'.asc': 216, '.prj': 216}
+timestamp_distribution: {}
+unmatched_examples    : ['Corredoria_Grado_1_y_2_000_0_01_0_01-01-2025_0000_ang.asc', 'Corredoria_Grado_1_y_2_000_0_01_0_01-01-2025_0000_ang.prj', 'Corredoria_Grado_1_y_2_000_0_01_0_01-01-2025_0000_cld.asc', 'Corredoria_Grado_1_y_2_000_0_01_0_01-01-2025_0000_cld.prj', 'Corredoria_Grado_1_y_2_000_0_01_0_01-01-2025_0000_vel.asc', 'Corredoria_Grado_1_y_2_000_0_01_0_01-01-2025_0000_vel.prj', 'Corredoria_Grado_1_y_2_010_0_01_0_01-01-2025_0015_ang.asc', 'Corredoria_Grado_1_y_2_010_0_01_0_01-01-2025_0015_ang.prj', 'Corredoria_Grado_1_y_2_010_0_01_0_01-01-2025_0015_cld.asc', 'Corredoria_Grado_1_y_2_010_0_01_0_01-01-2025_0015_cld.prj', 'Corredoria_Grado_1_y_2_010_0_01_0_01-01-2025_0015_vel.asc', 'Corredoria_Grado_1_y_2_010_0_01_0_01-01-2025_0015_vel.prj', 'Corredoria_Grado_1_y_2_020_0_01_0_01-01-2025_0030_ang.asc', 'Corredoria_Grado_1_y_2_020_0_01_0_01-01-2025_0030_ang.prj', 'Corredoria_Grado_1_y_2_020_0_01_0_01-01-2025_0030_cld.asc', 'Corredoria_Grado_1_y_2_020_0_01_0_01-01-2025_0030_cld.prj', 'Corredoria_Grado_1_y_2_020_0_01_0_01-01-2025_0030_vel.asc', 'Corredoria_Grado_1_y_2_020_0_01_0_01-01-2025_0030_vel.prj', 'Corredoria_Grado_1_y_2_030_0_01_0_01-01-2025_0045_ang.asc', 'Corredoria_Grado_1_y_2_030_0_01_0_01-01-2025_0045_ang.prj']
