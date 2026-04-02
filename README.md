@@ -72,4 +72,4 @@ Versión 1.0.0 - Base funcional
 
 ## Autor
 
-Trabajo Fin de Grado (TFG)
+Trabajo Fin de Grado (TFG) -- Javier Sierra
