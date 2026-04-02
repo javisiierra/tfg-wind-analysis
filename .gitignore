@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# FastAPI / logs
+*.log
+out/
+
+# Angular
+node_modules/
+dist/
+.angular/
+
+# VSCode
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Resultados backend
+backend/out/
+
+# Notebooks dentro de app
+backend/app/notebooks/
+*.ipynb
