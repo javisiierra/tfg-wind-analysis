@@ -22,26 +22,37 @@ class PipelineRequest(BaseModel):
 
 
 def load_cfg_from_case_or_raise(case_path: str):
-    base = Path(case_path)
+    normalized_case_path = case_path.strip().strip('"').strip("'")
+    base = Path(normalized_case_path).expanduser()
 
     if not base.exists():
         raise HTTPException(
             status_code=404,
-            detail=f"No existe la carpeta del caso: {case_path}",
+            detail=f"No existe la carpeta del caso: {normalized_case_path}",
         )
 
     if not base.is_dir():
         raise HTTPException(
             status_code=400,
-            detail=f"La ruta no es una carpeta: {case_path}",
+            detail=f"La ruta no es una carpeta: {normalized_case_path}",
         )
 
-    config_path = base / "config.toml"
+    config_candidates = [
+        base / "config.toml",
+        base / "config",
+    ]
 
-    if not config_path.exists():
+    config_path = next((candidate for candidate in config_candidates if candidate.exists()), None)
+
+    if config_path is None:
+        available_names = sorted(p.name for p in base.iterdir() if p.is_file())
         raise HTTPException(
             status_code=404,
-            detail=f"No existe config.toml dentro de la carpeta: {case_path}",
+            detail={
+                "message": "No existe config.toml/config dentro de la carpeta del caso.",
+                "case_path": str(base),
+                "available_files": available_names,
+            },
         )
 
     try:
@@ -49,7 +60,10 @@ def load_cfg_from_case_or_raise(case_path: str):
     except Exception as e:
         raise HTTPException(
             status_code=400,
-            detail=f"No se pudo cargar el TOML: {e}",
+            detail={
+                "message": f"No se pudo cargar el archivo de configuración: {config_path.name}",
+                "error": str(e),
+            },
         )
 
 
