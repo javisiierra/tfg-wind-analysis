@@ -9,6 +9,18 @@ import tomllib
 from app.core.paths import join_base
 
 
+def _first_existing(base: Path, candidates: list[str]) -> Optional[Path]:
+    for rel in candidates:
+        p = base / rel
+        if p.exists():
+            return p
+    return None
+
+
+def _ensure_path(base: Path, rel: str) -> Path:
+    return base / rel
+
+
 @dataclass(frozen=True)
 class Config:
     # --- Meta / control ---
@@ -70,7 +82,7 @@ class Config:
     def validate(self) -> None:
         if self.p < 0:
             raise ValueError("p debe ser >= 0.")
-    
+
     @staticmethod
     def from_toml(cfg_path: str | Path) -> "Config":
         cfg_path = Path(cfg_path)
@@ -86,8 +98,8 @@ class Config:
         location = data.get("location", {})
         rename = data.get("rename", {})
 
-        # Base de resolución: paths.general_path si existe; si no, carpeta del TOML
-        base = Path(paths.get("general_path", cfg_path.parent))
+        # La base real del caso es siempre la carpeta donde está el config.toml
+        base = cfg_path.parent
 
         def opt_path(key: str) -> Optional[Path]:
             v = paths.get(key, None)
@@ -151,6 +163,98 @@ class Config:
         cfg.validate()
         return cfg
 
+    @staticmethod
+    def from_case_path(case_path: str | Path) -> "Config":
+        base = Path(case_path).resolve()
+
+        if not base.exists():
+            raise FileNotFoundError(f"No existe la carpeta del caso: {base}")
+
+        if not base.is_dir():
+            raise NotADirectoryError(f"La ruta no es una carpeta: {base}")
+
+        line = base.name
+
+        # Entradas por convención / heurística
+        in_shp = _first_existing(base, [
+            f"{line}/{line.replace('_', '-')}.shp",
+            f"{line}/{line}.shp",
+            f"{line}.shp",
+            "SHP/dominio.shp",
+            "Corredoria-Grado.shp",
+            "Corredoria_Grado_1_y_2/Corredoria-Grado.shp",
+        ])
+
+        in_xlsx = _first_existing(base, [
+            "Apoyos/Apoyos Corredoria-Grado.xlsx",
+            f"Apoyos/Apoyos {line}.xlsx",
+        ])
+
+        in_weather_file = _first_existing(base, [
+            "Weather_Input_Data/WN_PointInit_Path.csv",
+        ])
+
+        cfg = Config(
+            general_path=base,
+            line=line,
+            Station_Name="Station1",
+            p=0.20,
+
+            in_shp=in_shp,
+            out_shp=_ensure_path(base, "Calculos/extremos_bbox.shp"),
+            out_rec_shp=_ensure_path(base, "Calculos/rect_bbox_ejes.shp"),
+            out_rec_exp_shp=_ensure_path(base, "Calculos/rect_exp_bbox_ejes.shp"),
+            out_mdt_tif=_ensure_path(base, f"MDT_WN/MDT_WN_{line}.tif"),
+
+            in_xlsx=in_xlsx,
+            out_apoyos_shp=_ensure_path(base, f"Apoyos/Apoyos {line}.shp"),
+            apoyos_epsg_arg=25830,
+
+            in_weather_file=in_weather_file,
+            out_weather_point_file=_ensure_path(base, "Weather_Input_Data/WN_input_Point_1.csv"),
+
+            out_perfil_file=_ensure_path(base, f"Calculos/{line}_perfil.png"),
+            out_vanos_shp=_ensure_path(base, f"Calculos/{line}_vanos.shp"),
+
+            out_wn=_ensure_path(base, "OUT_WN"),
+            out_wn_ren=_ensure_path(base, "OUT_WN_REN"),
+            out_wn_speed_csv=None,
+            out_wn_dir_csv=None,
+            out_wn_prj_csv=None,
+            out_v_perp_min_shp=_ensure_path(base, f"Calculos/{line}_v_perp_min.shp"),
+
+            wr_csv=_ensure_path(base, f"WR/{line}_wind_power.csv"),
+            wr_plot=_ensure_path(base, f"WR/{line}_wind_power.png"),
+            wr_title="",
+
+            mesh_resolution=200.0,
+            num_threads=8,
+            time_zone="Europe/Madrid",
+            temperature=20.0,
+            n_directions=36,
+            height=15.0,
+
+            num_sensores=1,
+            weather_source="power",
+
+            time_start="2023-01-01",
+            time_end="2023-12-31",
+
+            wr_n_dir=16,
+
+            lat=43.4623,
+            lon=-3.80998,
+
+            apply_rename=False,
+        )
+
+        cfg.validate()
+        return cfg
+
 
 def load_config_toml(cfg_path: str | Path) -> Config:
     return Config.from_toml(cfg_path)
+
+
+def load_config_from_case(case_path: str | Path) -> Config:
+    return Config.from_case_path(case_path)

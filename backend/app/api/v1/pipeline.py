@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from app.core.config import load_config_toml
+from app.core.config import load_config_from_case
 from app.scripts.run_local_pipeline import (
     run_generate_scenarios,
     run_geometry_and_dem,
@@ -36,20 +36,12 @@ def load_cfg_from_case_or_raise(case_path: str):
             detail=f"La ruta no es una carpeta: {case_path}",
         )
 
-    config_path = base / "config.toml"
-
-    if not config_path.exists():
-        raise HTTPException(
-            status_code=404,
-            detail=f"No existe config.toml dentro de la carpeta: {case_path}",
-        )
-
     try:
-        return load_config_toml(config_path)
+        return load_config_from_case(base)
     except Exception as e:
         raise HTTPException(
             status_code=400,
-            detail=f"No se pudo cargar el TOML: {e}",
+            detail=f"No se pudo construir la configuración automáticamente: {e}",
         )
 
 
