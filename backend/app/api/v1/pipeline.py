@@ -161,6 +161,36 @@ def create_domain_case(request: DomainCreateRequest):
             detail=f"No se pudo crear el caso: {e}",
         )
 
+@router.post("/domain/generate-dem")
+def generate_dem_from_domain(request: PipelineRequest):
+    cfg = load_cfg_from_case_or_raise(request.case_path)
+
+    if cfg.in_shp is None or not Path(cfg.in_shp).exists():
+        raise HTTPException(
+            status_code=400,
+            detail="No existe geometría de dominio para generar el DEM",
+        )
+
+    try:
+        result = run_geometry_and_dem(cfg)
+
+        return {
+            "status": "ok",
+            "case_path": request.case_path,
+            "domain_file": str(cfg.in_shp) if cfg.in_shp else None,
+            "out_shp": str(cfg.out_shp) if cfg.out_shp else None,
+            "out_rec_shp": str(cfg.out_rec_shp) if cfg.out_rec_shp else None,
+            "out_rec_exp_shp": str(cfg.out_rec_exp_shp) if cfg.out_rec_exp_shp else None,
+            "out_mdt_tif": str(cfg.out_mdt_tif) if cfg.out_mdt_tif else None,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error generando DEM desde dominio: {e}",
+        )
 
 @router.post("/pipeline/run-base")
 def run_base_pipeline(request: PipelineRequest):
@@ -207,6 +237,18 @@ def run_base_pipeline(request: PipelineRequest):
 @router.post("/pipeline/run-windninja")
 def run_windninja_api(request: PipelineRequest):
     cfg = load_cfg_from_case_or_raise(request.case_path)
+
+    if cfg.in_weather_file is None:
+        raise HTTPException(
+            status_code=400,
+            detail="No existe archivo meteorológico (WN_PointInit_Path.csv) en el caso",
+        )
+
+    if cfg.out_mdt_tif is None or not Path(cfg.out_mdt_tif).exists():
+        raise HTTPException(
+            status_code=400,
+            detail="No existe MDT (DEM) necesario para WindNinja",
+        )
 
     try:
         from app.scripts.run_local_pipeline import run_windninja_stage

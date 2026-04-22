@@ -27,10 +27,17 @@ export class Sidebar {
 
   caseName = '';
 
+  hasWeatherData = true;
+  hasDem = true;
+
   constructor(private http: HttpClient) {}
 
   runWindNinja() {
     this.call('/run-windninja', 'WindNinja');
+  }
+
+  runGenerateDem() {
+    this.callDomain('/generate-dem', 'Generar DEM');
   }
 
   runRename() {
@@ -110,6 +117,26 @@ export class Sidebar {
     this.currentAction = action;
 
     this.http.post(`http://127.0.0.1:8000/api/v1/pipeline${endpoint}`, {
+      case_path: this.casePath
+    }).subscribe({
+      next: (res) => {
+        this.result = res;
+        this.loading = false;
+      },
+      error: (err) => {
+        this.error = err;
+        this.loading = false;
+      }
+    });
+  }
+
+    private callDomain(endpoint: string, action: string) {
+    this.loading = true;
+    this.result = null;
+    this.error = null;
+    this.currentAction = action;
+
+    this.http.post(`http://127.0.0.1:8000/api/v1/domain${endpoint}`, {
       case_path: this.casePath
     }).subscribe({
       next: (res) => {

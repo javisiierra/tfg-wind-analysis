@@ -22,7 +22,16 @@
 
   <h3>Ejecución</h3>
 
-  <button (click)="runWindNinja()">Run WindNinja</button>
+  <button 
+  (click)="runGenerateDem()" 
+  [disabled]="!casePath">
+  Generar DEM
+  </button>
+  <button 
+  (click)="runWindNinja()" 
+  [disabled]="!casePath || !hasWeatherData || !hasDem">
+  Run WindNinja
+  </button>
   <button (click)="runRename()">Run Rename</button>
   <button (click)="runWindRose()">Run Wind Rose</button>
 
