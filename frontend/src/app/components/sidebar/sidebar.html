@@ -1,0 +1,27 @@
+<div class="sidebar">
+  <h3>Ejecución</h3>
+
+  <button (click)="runWindNinja()">Run WindNinja</button>
+  <button (click)="runRename()">Run Rename</button>
+  <button (click)="runWindRose()">Run Wind Rose</button>
+
+  <h3>Capas</h3>
+
+  <button (click)="showApoyos()">Mostrar apoyos</button>
+  <button (click)="showVanos()">Mostrar vanos</button>
+  <button (click)="showDominio()">Mostrar dominio</button>
+
+  <div *ngIf="loading" class="result-box">
+    <strong>⏳ Ejecutando {{ currentAction }}...</strong>
+  </div>
+
+  <div *ngIf="result" class="result-box">
+    <strong>Resultado</strong>
+    <pre>{{ result | json }}</pre>
+  </div>
+
+  <div *ngIf="error" class="result-box">
+    <strong>Error</strong>
+    <pre>{{ error | json }}</pre>
+  </div>
+</div>

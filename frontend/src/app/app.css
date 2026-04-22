@@ -1,0 +1,28 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+app-topbar {
+  flex: 0 0 auto;
+  border-bottom: 1px solid #ccc;
+}
+
+.main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+app-sidebar {
+  width: 340px;
+  border-right: 1px solid #ccc;
+  overflow: auto;
+}
+
+app-map {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}

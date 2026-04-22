@@ -1,0 +1,13 @@
+<app-topbar (caseChange)="casePath = $event"></app-topbar>
+
+<div class="main">
+  <app-sidebar
+    [casePath]="casePath"
+    (layerSelected)="selectedLayer = $event">
+  </app-sidebar>
+
+  <app-map
+    [casePath]="casePath"
+    [selectedLayer]="selectedLayer">
+  </app-map>
+</div>

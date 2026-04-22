@@ -1,0 +1,43 @@
+.topbar {
+  padding: 0.75rem;
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.topbar input {
+  flex: 1;
+  min-width: 320px;
+  padding: 0.5rem;
+}
+
+.topbar button {
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+}
+
+.status-box {
+  margin: 0.25rem 0.75rem 0.5rem 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: #f4f4f4;
+  border-radius: 6px;
+}
+
+.details-box {
+  margin: 0 0.75rem 0.5rem 0.75rem;
+  max-height: 140px;
+  overflow: auto;
+  background: #f4f4f4;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+}
+
+.error-box {
+  background: #fdeaea;
+}
+
+pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0.5rem 0 0 0;
+}

@@ -1,0 +1,18 @@
+<div class="topbar">
+  <input [(ngModel)]="casePath" placeholder="Ruta de la carpeta del caso" />
+  <button (click)="runBase()">Run Base</button>
+</div>
+
+<div *ngIf="statusText" class="status-box">
+  {{ statusText }}
+</div>
+
+<details *ngIf="result" class="details-box">
+  <summary>Ver detalle de salida</summary>
+  <pre>{{ result | json }}</pre>
+</details>
+
+<details *ngIf="error" class="details-box error-box">
+  <summary>Ver detalle del error</summary>
+  <pre>{{ error | json }}</pre>
+</details>
