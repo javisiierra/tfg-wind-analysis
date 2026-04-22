@@ -1,1 +1,10 @@
-<div id="map"></div>
+<div class="map-wrapper">
+  <div id="map"></div>
+
+  <div class="map-hud">
+    <span class="badge">EPSG:3857 (visualización)</span>
+    <span class="badge" *ngIf="selectedLayer">Capa: {{ selectedLayer }}</span>
+    <span class="badge loading" *ngIf="loadingLayer">Cargando capa...</span>
+    <span class="badge error" *ngIf="layerError">Error al cargar capa</span>
+  </div>
+</div>

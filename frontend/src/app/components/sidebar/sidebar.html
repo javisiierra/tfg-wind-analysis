@@ -1,26 +1,32 @@
 <div class="sidebar">
-  <h3>Ejecución</h3>
+  <section class="panel">
+    <h3>Ejecución</h3>
+    <p class="panel-caption">Lanza fases del pipeline con la carpeta de caso seleccionada.</p>
 
-  <button (click)="runWindNinja()">Run WindNinja</button>
-  <button (click)="runRename()">Run Rename</button>
-  <button (click)="runWindRose()">Run Wind Rose</button>
+    <button class="btn action" (click)="runWindNinja()" [disabled]="loading">Run WindNinja</button>
+    <button class="btn action" (click)="runRename()" [disabled]="loading">Run Rename</button>
+    <button class="btn action" (click)="runWindRose()" [disabled]="loading">Run Wind Rose</button>
+  </section>
 
-  <h3>Capas</h3>
+  <section class="panel">
+    <h3>Capas</h3>
+    <p class="panel-caption">Visualiza resultados geoespaciales en el mapa.</p>
 
-  <button (click)="showApoyos()">Mostrar apoyos</button>
-  <button (click)="showVanos()">Mostrar vanos</button>
-  <button (click)="showDominio()">Mostrar dominio</button>
+    <button class="btn layer" [class.active]="activeLayer === 'apoyos'" (click)="showApoyos()">Mostrar apoyos</button>
+    <button class="btn layer" [class.active]="activeLayer === 'vanos'" (click)="showVanos()">Mostrar vanos</button>
+    <button class="btn layer" [class.active]="activeLayer === 'dominio'" (click)="showDominio()">Mostrar dominio</button>
+  </section>
 
-  <div *ngIf="loading" class="result-box">
+  <div *ngIf="loading" class="result-box info">
     <strong>⏳ Ejecutando {{ currentAction }}...</strong>
   </div>
 
-  <div *ngIf="result" class="result-box">
+  <div *ngIf="result" class="result-box ok">
     <strong>Resultado</strong>
     <pre>{{ result | json }}</pre>
   </div>
 
-  <div *ngIf="error" class="result-box">
+  <div *ngIf="error" class="result-box error">
     <strong>Error</strong>
     <pre>{{ error | json }}</pre>
   </div>
