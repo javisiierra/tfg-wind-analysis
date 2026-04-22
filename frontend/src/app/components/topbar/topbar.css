@@ -1,30 +1,69 @@
 .topbar {
-  padding: 0.75rem;
+  padding: 0.75rem 1rem;
   display: flex;
-  gap: 0.75rem;
   align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: linear-gradient(90deg, #0f3f5a 0%, #1e6d93 100%);
+  color: #fff;
 }
 
-.topbar input {
+.brand h1 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.brand p {
+  margin: 0.15rem 0 0;
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: min(820px, 100%);
+}
+
+.actions input {
   flex: 1;
-  min-width: 320px;
-  padding: 0.5rem;
+  min-width: 280px;
+  padding: 0.6rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid #8fb5c9;
 }
 
-.topbar button {
-  padding: 0.5rem 0.75rem;
+.actions button {
+  padding: 0.6rem 0.9rem;
+  border-radius: 8px;
+  border: none;
   cursor: pointer;
+  font-weight: 600;
+  color: #0d2a3a;
+  background: #d8f0ff;
+}
+
+.actions button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .status-box {
-  margin: 0.25rem 0.75rem 0.5rem 0.75rem;
-  padding: 0.5rem 0.75rem;
-  background: #f4f4f4;
+  margin: 0.35rem 1rem 0.5rem;
+  padding: 0.55rem 0.8rem;
+  background: #eef6fb;
   border-radius: 6px;
+  border: 1px solid #bdd8e6;
+}
+
+.success-box {
+  border-color: #80c694;
+  background: #e8f8ed;
 }
 
 .details-box {
-  margin: 0 0.75rem 0.5rem 0.75rem;
+  margin: 0 1rem 0.5rem;
   max-height: 140px;
   overflow: auto;
   background: #f4f4f4;
@@ -34,10 +73,11 @@
 
 .error-box {
   background: #fdeaea;
+  border: 1px solid #efb5b5;
 }
 
 pre {
   white-space: pre-wrap;
   word-break: break-word;
-  margin: 0.5rem 0 0 0;
+  margin: 0.5rem 0 0;
 }

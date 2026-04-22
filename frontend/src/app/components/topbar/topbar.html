@@ -1,9 +1,18 @@
-<div class="topbar">
-  <input [(ngModel)]="casePath" placeholder="Ruta de la carpeta del caso" />
-  <button (click)="runBase()">Run Base</button>
-</div>
+<header class="topbar">
+  <div class="brand">
+    <h1>Wind Analysis GIS</h1>
+    <p>Preparación automática de entradas para WindNinja</p>
+  </div>
 
-<div *ngIf="statusText" class="status-box">
+  <div class="actions">
+    <input [(ngModel)]="casePath" placeholder="Ruta de la carpeta del caso" />
+    <button (click)="runBase()" [disabled]="loading">
+      {{ loading ? 'Ejecutando...' : 'Run Base' }}
+    </button>
+  </div>
+</header>
+
+<div *ngIf="statusText" class="status-box" [class.error-box]="!!error" [class.success-box]="!!result && !error">
   {{ statusText }}
 </div>
 
