@@ -1,13 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from app.api.router import api_router
 
 app = FastAPI(
-
-    app = FastAPI(
-        title="CriticalSpam Backend",
-        version="1.0.0",
-    )
+    title="CriticalSpam Backend",
+    version="1.0.0",
 )
 
 app.add_middleware(
