@@ -1,4 +1,5 @@
 import { Component, Input, OnChanges, AfterViewInit, SimpleChanges } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import Map from 'ol/Map';
 import View from 'ol/View';
 import TileLayer from 'ol/layer/Tile';
@@ -11,6 +12,7 @@ import { fromLonLat } from 'ol/proj';
 @Component({
   selector: 'app-map',
   standalone: true,
+  imports: [CommonModule],
   templateUrl: './map.html',
   styleUrl: './map.css'
 })
@@ -20,6 +22,8 @@ export class MapComponent implements AfterViewInit, OnChanges {
 
   map: Map | undefined;
   vectorLayer: VectorLayer<VectorSource> | undefined;
+  loadingLayer = false;
+  layerError = false;
 
   ngAfterViewInit(): void {
     this.vectorLayer = new VectorLayer({
@@ -53,6 +57,9 @@ export class MapComponent implements AfterViewInit, OnChanges {
   }
 
   loadLayer(layerName: string, casePath: string): void {
+    this.loadingLayer = true;
+    this.layerError = false;
+
     fetch(`http://127.0.0.1:8000/api/v1/layers/${layerName}`, {
       method: 'POST',
       headers: {
@@ -103,6 +110,10 @@ export class MapComponent implements AfterViewInit, OnChanges {
       })
       .catch(err => {
         console.error(`Error cargando capa ${layerName}:`, err);
+        this.layerError = true;
+      })
+      .finally(() => {
+        this.loadingLayer = false;
       });
   }
 }

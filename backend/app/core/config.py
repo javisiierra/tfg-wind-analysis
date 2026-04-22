@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
+import re
 
 import tomllib
 
@@ -74,7 +75,25 @@ class Config:
     @staticmethod
     def from_toml(cfg_path: str | Path) -> "Config":
         cfg_path = Path(cfg_path)
-        data: dict[str, Any] = tomllib.loads(cfg_path.read_text(encoding="utf-8"))
+        raw_text = cfg_path.read_text(encoding="utf-8")
+
+        try:
+            data: dict[str, Any] = tomllib.loads(raw_text)
+        except tomllib.TOMLDecodeError as exc:
+            # Compatibilidad con configuraciones históricas del proyecto.
+            # En varios casos antiguos `wr_bins` contenía "inf" como string,
+            # lo que rompe el parser TOML estricto aunque el campo no se use
+            # en el pipeline actual.
+            sanitized_text = re.sub(
+                r'^\s*wr_bins\s*=.*$',
+                '# wr_bins omitido por compatibilidad',
+                raw_text,
+                flags=re.MULTILINE,
+            )
+            try:
+                data = tomllib.loads(sanitized_text)
+            except tomllib.TOMLDecodeError:
+                raise ValueError(f"TOML inválido en {cfg_path.name}: {exc}") from exc
 
         paths = data.get("paths", {})
         params = data.get("params", {})

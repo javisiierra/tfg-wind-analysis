@@ -5,6 +5,7 @@ import geopandas as gpd
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from typing import Optional
 
 from app.core.config import load_config_toml
 from app.scripts.run_local_pipeline import (
@@ -18,38 +19,64 @@ router = APIRouter()
 
 
 class PipelineRequest(BaseModel):
-    case_path: str
+    case_path: Optional[str] = None
 
 
-def load_cfg_from_case_or_raise(case_path: str):
-    base = Path(case_path)
+def resolve_case_path_and_config_or_raise(case_path: Optional[str]) -> tuple[Path, Path]:
+    if case_path is None or not str(case_path).strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Debes indicar case_path (ruta de la carpeta del caso).",
+        )
+
+    normalized_case_path = str(case_path).strip().strip('"').strip("'")
+    base = Path(normalized_case_path).expanduser()
 
     if not base.exists():
         raise HTTPException(
             status_code=404,
-            detail=f"No existe la carpeta del caso: {case_path}",
+            detail=f"No existe la carpeta del caso: {normalized_case_path}",
         )
 
     if not base.is_dir():
         raise HTTPException(
             status_code=400,
-            detail=f"La ruta no es una carpeta: {case_path}",
+            detail=f"La ruta no es una carpeta: {normalized_case_path}",
         )
 
-    config_path = base / "config.toml"
+    config_candidates = [
+        base / "config.toml",
+        base / "config",
+    ]
 
-    if not config_path.exists():
+    config_path = next((candidate for candidate in config_candidates if candidate.exists()), None)
+
+    if config_path is None:
+        available_names = sorted(p.name for p in base.iterdir() if p.is_file())
         raise HTTPException(
             status_code=404,
-            detail=f"No existe config.toml dentro de la carpeta: {case_path}",
+            detail={
+                "message": "No existe config.toml/config dentro de la carpeta del caso.",
+                "case_path": str(base),
+                "available_files": available_names,
+            },
         )
+
+    return base, config_path
+
+
+def load_cfg_from_case_or_raise(case_path: Optional[str]):
+    _, config_path = resolve_case_path_and_config_or_raise(case_path)
 
     try:
         return load_config_toml(config_path)
     except Exception as e:
         raise HTTPException(
             status_code=400,
-            detail=f"No se pudo cargar el TOML: {e}",
+            detail={
+                "message": f"No se pudo cargar el archivo de configuración: {config_path.name}",
+                "error": str(e),
+            },
         )
 
 
@@ -89,6 +116,26 @@ def shapefile_to_geojson_response(shp_path: Path, layer_name: str):
 @router.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@router.post("/pipeline/validate-case")
+def validate_case(request: PipelineRequest):
+    base, config_path = resolve_case_path_and_config_or_raise(request.case_path)
+    cfg = load_cfg_from_case_or_raise(request.case_path)
+
+    return {
+        "status": "ok",
+        "case_path": str(base),
+        "config_file": str(config_path),
+        "line": cfg.line,
+        "weather_source": cfg.weather_source,
+        "outputs": {
+            "out_mdt_tif": str(cfg.out_mdt_tif) if cfg.out_mdt_tif else None,
+            "out_apoyos_shp": str(cfg.out_apoyos_shp) if cfg.out_apoyos_shp else None,
+            "out_vanos_shp": str(cfg.out_vanos_shp) if cfg.out_vanos_shp else None,
+            "out_weather_point_file": str(cfg.out_weather_point_file) if cfg.out_weather_point_file else None,
+        },
+    }
 
 
 @router.post("/pipeline/run-base")

@@ -17,6 +17,7 @@ export class Sidebar {
   error: any = null;
   loading = false;
   currentAction = '';
+  activeLayer = '';
 
   constructor(private http: HttpClient) {}
 
@@ -33,15 +34,20 @@ export class Sidebar {
   }
 
   showApoyos() {
-    this.layerSelected.emit('apoyos');
+    this.selectLayer('apoyos');
   }
 
   showVanos() {
-    this.layerSelected.emit('vanos');
+    this.selectLayer('vanos');
   }
 
   showDominio() {
-    this.layerSelected.emit('dominio');
+    this.selectLayer('dominio');
+  }
+
+  private selectLayer(layer: string) {
+    this.activeLayer = layer;
+    this.layerSelected.emit(layer);
   }
 
   private call(endpoint: string, action: string) {
