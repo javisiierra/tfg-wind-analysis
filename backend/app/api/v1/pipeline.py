@@ -30,6 +30,8 @@ def resolve_case_path_and_config_or_raise(case_path: Optional[str]) -> tuple[Pat
         )
 
     normalized_case_path = str(case_path).strip().strip('"').strip("'")
+def load_cfg_from_case_or_raise(case_path: str):
+    normalized_case_path = case_path.strip().strip('"').strip("'")
     base = Path(normalized_case_path).expanduser()
 
     if not base.exists():
