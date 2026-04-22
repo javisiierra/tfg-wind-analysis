@@ -177,10 +177,11 @@ class Config:
 
         # Entradas por convención / heurística
         in_shp = _first_existing(base, [
+            "SHP/dominio.geojson",
+            "SHP/dominio.shp",
             f"{line}/{line.replace('_', '-')}.shp",
             f"{line}/{line}.shp",
             f"{line}.shp",
-            "SHP/dominio.shp",
             "Corredoria-Grado.shp",
             "Corredoria_Grado_1_y_2/Corredoria-Grado.shp",
         ])
