@@ -1,4 +1,25 @@
 <div class="sidebar">
+  <h3>Crear caso desde mapa</h3>
+
+  <label for="case-name">Case name</label>
+  <input
+    id="case-name"
+    type="text"
+    [(ngModel)]="caseName"
+    placeholder="Caso_Prueba_01" />
+
+  <button (click)="startRectangleDraw()">Dibujar rectángulo</button>
+  <button (click)="startPolygonDraw()">Dibujar polígono</button>
+  <button (click)="clearDrawnGeometry()">Limpiar dibujo</button>
+  <button (click)="saveCase()" [disabled]="loading">Guardar caso</button>
+
+  <p class="geometry-status" *ngIf="drawnGeometry; else noGeometry">
+    Geometría lista para guardar.
+  </p>
+  <ng-template #noGeometry>
+    <p class="geometry-status">No hay geometría dibujada.</p>
+  </ng-template>
+
   <h3>Ejecución</h3>
 
   <button (click)="runWindNinja()">Run WindNinja</button>
