@@ -1,13 +1,20 @@
-<app-topbar (caseChange)="casePath = $event"></app-topbar>
+<app-topbar (caseChange)="onCasePathChange($event)"></app-topbar>
 
 <div class="main">
   <app-sidebar
     [casePath]="casePath"
-    (layerSelected)="selectedLayer = $event">
+    [drawnGeometry]="drawnGeometry"
+    (layerSelected)="selectedLayer = $event"
+    (drawModeChange)="onDrawModeChange($event)"
+    (clearDrawing)="onClearDrawing()"
+    (caseCreated)="onCaseCreated($event)">
   </app-sidebar>
 
   <app-map
     [casePath]="casePath"
-    [selectedLayer]="selectedLayer">
+    [selectedLayer]="selectedLayer"
+    [drawMode]="drawMode"
+    [clearDrawToken]="clearDrawToken"
+    (geometryChange)="onGeometryChange($event)">
   </app-map>
 </div>

@@ -5,9 +5,19 @@
   gap: 0.75rem;
 }
 
-button {
+button,
+input {
   padding: 0.5rem;
+}
+
+button {
   cursor: pointer;
+}
+
+.geometry-status {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #333;
 }
 
 .result-box {
