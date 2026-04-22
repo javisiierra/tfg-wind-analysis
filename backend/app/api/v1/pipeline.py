@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Any
 
 import geopandas as gpd
 from fastapi import APIRouter, HTTPException
@@ -19,6 +20,12 @@ router = APIRouter()
 
 class PipelineRequest(BaseModel):
     case_path: str
+
+
+class DomainCreateRequest(BaseModel):
+    case_name: str
+    geometry: dict[str, Any]
+    epsg: int = 4326
 
 
 def load_cfg_from_case_or_raise(case_path: str):
@@ -43,6 +50,33 @@ def load_cfg_from_case_or_raise(case_path: str):
             status_code=400,
             detail=f"No se pudo construir la configuración automáticamente: {e}",
         )
+
+
+def create_case_structure(base_root: Path, case_name: str) -> dict[str, Path]:
+    case_path = base_root / case_name
+
+    if case_path.exists():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Ya existe un caso con ese nombre: {case_name}",
+        )
+
+    folders = {
+        "case": case_path,
+        "shp": case_path / "SHP",
+        "calculos": case_path / "Calculos",
+        "mdt": case_path / "MDT_WN",
+        "weather": case_path / "Weather_Input_Data",
+        "apoyos": case_path / "Apoyos",
+        "out_wn": case_path / "OUT_WN",
+        "out_wn_ren": case_path / "OUT_WN_REN",
+        "wr": case_path / "WR",
+    }
+
+    for folder in folders.values():
+        folder.mkdir(parents=True, exist_ok=True)
+
+    return folders
 
 
 def shapefile_to_geojson_response(shp_path: Path, layer_name: str):
@@ -81,6 +115,51 @@ def shapefile_to_geojson_response(shp_path: Path, layer_name: str):
 @router.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@router.post("/domain/create")
+def create_domain_case(request: DomainCreateRequest):
+    base_root = Path(r"C:\Datos_TFG")
+
+    try:
+        folders = create_case_structure(base_root, request.case_name)
+
+        domain_geojson_path = folders["shp"] / "dominio.geojson"
+
+        feature_collection = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "case_name": request.case_name,
+                        "source": "drawn_in_web",
+                        "epsg": request.epsg,
+                    },
+                    "geometry": request.geometry,
+                }
+            ],
+        }
+
+        domain_geojson_path.write_text(
+            json.dumps(feature_collection, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+        return {
+            "status": "ok",
+            "case_name": request.case_name,
+            "case_path": str(folders["case"]),
+            "domain_file": str(domain_geojson_path),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"No se pudo crear el caso: {e}",
+        )
 
 
 @router.post("/pipeline/run-base")
