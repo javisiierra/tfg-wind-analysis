@@ -1,18 +1,31 @@
 <div class="topbar">
-  <input [(ngModel)]="casePath" placeholder="Ruta de la carpeta del caso" />
-  <button (click)="runBase()">Run Base</button>
+  <div class="brand">
+    <div class="brand-icon">🌬️</div>
+
+    <div class="brand-text">
+      <h1>WindNinja Input Builder</h1>
+      <span>Preparación Web-GIS de entradas geoespaciales</span>
+    </div>
+  </div>
+
+  <div class="case-control">
+    <input
+      [(ngModel)]="casePath"
+      placeholder="Ruta de la carpeta del caso"
+      title="Ruta de la carpeta del caso"
+    />
+
+    <button class="btn secondary" (click)="selectFolder()">
+      Seleccionar carpeta
+    </button>
+
+    <button class="btn primary" (click)="runBase()" [disabled]="!casePath">
+      Run Base
+    </button>
+  </div>
+
+  <div class="system-status" [class.has-error]="error">
+    <span class="status-dot"></span>
+    <span>{{ error ? 'Error' : statusText ? statusText : 'Listo' }}</span>
+  </div>
 </div>
-
-<div *ngIf="statusText" class="status-box">
-  {{ statusText }}
-</div>
-
-<details *ngIf="result" class="details-box">
-  <summary>Ver detalle de salida</summary>
-  <pre>{{ result | json }}</pre>
-</details>
-
-<details *ngIf="error" class="details-box error-box">
-  <summary>Ver detalle del error</summary>
-  <pre>{{ error | json }}</pre>
-</details>

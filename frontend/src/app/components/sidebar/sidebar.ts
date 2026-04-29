@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, OnChanges, SimpleChanges } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { CommonModule, JsonPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -11,7 +11,7 @@ import { DrawMode } from '../../app';
   templateUrl: './sidebar.html',
   styleUrl: './sidebar.css'
 })
-export class Sidebar {
+export class Sidebar implements OnChanges {
   @Input() casePath: string = '';
   @Input() drawnGeometry: Record<string, any> | null = null;
 
@@ -27,17 +27,65 @@ export class Sidebar {
 
   caseName = '';
 
-  hasWeatherData = true;
-  hasDem = true;
+  hasDomain = false;
+  hasWeatherData = false;
+  hasDem = false;
+  hasApoyos = false;
+  hasVanos = false;
+  readyForWindNinja = false;
 
   constructor(private http: HttpClient) {}
 
-  runWindNinja() {
-    this.call('/run-windninja', 'WindNinja');
+  ngOnChanges(changes: SimpleChanges) {
+    if (changes['casePath']) {
+      this.refreshCaseStatus();
+    }
+  }
+
+  refreshCaseStatus() {
+    if (!this.casePath) {
+      this.hasDomain = false;
+      this.hasWeatherData = false;
+      this.hasDem = false;
+      this.hasApoyos = false;
+      this.hasVanos = false;
+      this.readyForWindNinja = false;
+      return;
+    }
+
+    this.http.post<any>('http://127.0.0.1:8000/api/v1/case/status', {
+      case_path: this.casePath
+    }).subscribe({
+      next: (res) => {
+        this.hasDomain = !!res.has_domain;
+        this.hasWeatherData = !!res.has_weather;
+        this.hasDem = !!res.has_dem;
+        this.hasApoyos = !!res.has_apoyos;
+        this.hasVanos = !!res.has_vanos;
+        this.readyForWindNinja = !!res.ready_for_windninja;
+      },
+      error: (err) => {
+        console.error('Error consultando estado del caso:', err);
+        this.hasDomain = false;
+        this.hasWeatherData = false;
+        this.hasDem = false;
+        this.hasApoyos = false;
+        this.hasVanos = false;
+        this.readyForWindNinja = false;
+      }
+    });
   }
 
   runGenerateDem() {
     this.callDomain('/generate-dem', 'Generar DEM');
+  }
+
+  runGenerateWeather() {
+    this.callDomain('/generate-weather', 'Generar meteorología');
+  }
+
+  runWindNinja() {
+    this.call('/run-windninja', 'WindNinja');
   }
 
   runRename() {
@@ -46,6 +94,10 @@ export class Sidebar {
 
   runWindRose() {
     this.call('/run-wind-rose', 'Wind Rose');
+  }
+
+  runWorstSupports() {
+    this.callAnalysis('/worst-supports', 'Peores apoyos');
   }
 
   startRectangleDraw() {
@@ -89,6 +141,11 @@ export class Sidebar {
 
         if (res?.case_path) {
           this.caseCreated.emit(res.case_path);
+          this.layerSelected.emit('dominio');
+
+          setTimeout(() => {
+            this.refreshCaseStatus();
+          }, 100);
         }
       },
       error: (err) => {
@@ -110,6 +167,10 @@ export class Sidebar {
     this.layerSelected.emit('dominio');
   }
 
+  showWorstSupports() {
+    this.layerSelected.emit('worst');
+  }
+
   private call(endpoint: string, action: string) {
     this.loading = true;
     this.result = null;
@@ -122,15 +183,17 @@ export class Sidebar {
       next: (res) => {
         this.result = res;
         this.loading = false;
+        this.refreshCaseStatus();
       },
       error: (err) => {
         this.error = err;
         this.loading = false;
+        this.refreshCaseStatus();
       }
     });
   }
 
-    private callDomain(endpoint: string, action: string) {
+  private callDomain(endpoint: string, action: string) {
     this.loading = true;
     this.result = null;
     this.error = null;
@@ -142,10 +205,34 @@ export class Sidebar {
       next: (res) => {
         this.result = res;
         this.loading = false;
+        this.refreshCaseStatus();
       },
       error: (err) => {
         this.error = err;
         this.loading = false;
+        this.refreshCaseStatus();
+      }
+    });
+  }
+
+  private callAnalysis(endpoint: string, action: string) {
+    this.loading = true;
+    this.result = null;
+    this.error = null;
+    this.currentAction = action;
+
+    this.http.post(`http://127.0.0.1:8000/api/v1/analysis${endpoint}`, {
+      case_path: this.casePath
+    }).subscribe({
+      next: (res) => {
+        this.result = res;
+        this.loading = false;
+        this.refreshCaseStatus();
+      },
+      error: (err) => {
+        this.error = err;
+        this.loading = false;
+        this.refreshCaseStatus();
       }
     });
   }

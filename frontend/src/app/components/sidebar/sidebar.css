@@ -1,35 +1,246 @@
+:host {
+  display: block;
+  height: 100%;
+  overflow: hidden;
+  background: #f8fafc;
+}
+
 .sidebar {
-  padding: 1rem;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 9px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
-button,
-input {
-  padding: 0.5rem;
+.sidebar-card {
+  padding: 11px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 13px;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.04);
 }
 
-button {
+.section-header {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.section-icon {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: #eff6ff;
+  font-size: 16px;
+}
+
+.section-header h3 {
+  margin: 0;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.section-header p {
+  margin: 2px 0 0 0;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.text-input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  outline: none;
+  font-size: 13px;
+}
+
+.text-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.button-grid,
+.layer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.btn,
+.layer-btn {
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 8px;
+  border-radius: 9px;
+  border: none;
+  font-weight: 700;
+  font-size: 12px;
   cursor: pointer;
 }
 
-.geometry-status {
-  margin: 0;
-  font-size: 0.9rem;
-  color: #333;
+.btn.primary {
+  margin-top: 8px;
+  background: #2563eb;
+  color: white;
 }
 
-.result-box {
-  max-height: 180px;
-  overflow: auto;
-  background: #f4f4f4;
-  padding: 0.75rem;
-  border-radius: 6px;
+.btn.primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.btn.secondary {
+  margin-top: 7px;
+  background: #e0f2fe;
+  color: #075985;
+  border: 1px solid #bae6fd;
+}
+
+.btn.secondary:hover:not(:disabled) {
+  background: #bae6fd;
+}
+
+.btn.ghost {
+  margin-top: 7px;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+
+.btn.ghost:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.btn:disabled,
+.layer-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.geometry-pill {
+  margin-top: 8px;
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.geometry-pill.ok {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.status-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 9px;
+  border-radius: 9px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.status-item strong {
+  font-size: 11px;
+  color: #b45309;
+}
+
+.status-item.ok {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.status-item.ok strong {
+  color: #15803d;
+}
+
+.warning-box {
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 9px;
+  background: #fff7ed;
+  color: #9a3412;
+  border: 1px solid #fed7aa;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.layer-btn {
+  background: #f8fafc;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+.layer-btn:hover {
+  background: #e2e8f0;
+}
+
+.output-card {
+  background: #020617;
+  color: #e2e8f0;
+  border-color: #1e293b;
+}
+
+.loading-box {
+  padding: 8px;
+  border-radius: 9px;
+  background: #172554;
+  color: #bfdbfe;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+details {
+  margin-top: 7px;
+}
+
+summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 12px;
 }
 
 pre {
+  margin: 8px 0 0 0;
+  max-height: 160px;
+  overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
-  margin: 0;
+  font-size: 11px;
+  color: #cbd5e1;
+}
+
+.error-details {
+  color: #fecaca;
 }

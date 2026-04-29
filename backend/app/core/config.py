@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import tomllib
+import geopandas as gpd
 
 from app.core.paths import join_base
 
@@ -19,6 +20,25 @@ def _first_existing(base: Path, candidates: list[str]) -> Optional[Path]:
 
 def _ensure_path(base: Path, rel: str) -> Path:
     return base / rel
+
+
+def _infer_lat_lon_from_geometry(path: Path) -> tuple[Optional[float], Optional[float]]:
+    try:
+        gdf = gpd.read_file(path)
+
+        if gdf.empty:
+            return None, None
+
+        if gdf.crs is None:
+            # Asunción razonable para tu caso actual
+            gdf = gdf.set_crs(epsg=25830)
+
+        gdf = gdf.to_crs(epsg=4326)
+        centroid = gdf.union_all().centroid
+
+        return float(centroid.y), float(centroid.x)
+    except Exception:
+        return None, None
 
 
 @dataclass(frozen=True)
@@ -195,6 +215,10 @@ class Config:
             "Weather_Input_Data/WN_PointInit_Path.csv",
         ])
 
+        lat, lon = (None, None)
+        if in_shp is not None:
+            lat, lon = _infer_lat_lon_from_geometry(in_shp)
+
         cfg = Config(
             general_path=base,
             line=line,
@@ -243,8 +267,8 @@ class Config:
 
             wr_n_dir=16,
 
-            lat=43.4623,
-            lon=-3.80998,
+            lat=lat,
+            lon=lon,
 
             apply_rename=False,
         )

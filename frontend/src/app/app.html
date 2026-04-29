@@ -1,20 +1,61 @@
-<app-topbar (caseChange)="onCasePathChange($event)"></app-topbar>
+<div class="app-shell">
+  <header class="app-header">
+    <app-topbar
+      (caseChange)="onCasePathChange($event)"
+      (pipelineStatusChange)="onPipelineStatusChange($event)">
+    </app-topbar>
+  </header>
 
-<div class="main">
-  <app-sidebar
-    [casePath]="casePath"
-    [drawnGeometry]="drawnGeometry"
-    (layerSelected)="selectedLayer = $event"
-    (drawModeChange)="onDrawModeChange($event)"
-    (clearDrawing)="onClearDrawing()"
-    (caseCreated)="onCaseCreated($event)">
-  </app-sidebar>
+  <aside class="app-sidebar">
+    <app-sidebar
+      [casePath]="casePath"
+      [drawnGeometry]="drawnGeometry"
+      (layerSelected)="selectedLayer = $event"
+      (drawModeChange)="onDrawModeChange($event)"
+      (clearDrawing)="onClearDrawing()"
+      (caseCreated)="onCaseCreated($event)">
+    </app-sidebar>
+  </aside>
 
-  <app-map
-    [casePath]="casePath"
-    [selectedLayer]="selectedLayer"
-    [drawMode]="drawMode"
-    [clearDrawToken]="clearDrawToken"
-    (geometryChange)="onGeometryChange($event)">
-  </app-map>
+  <main class="app-map-area">
+    <app-map
+      [casePath]="casePath"
+      [selectedLayer]="selectedLayer"
+      [drawMode]="drawMode"
+      [clearDrawToken]="clearDrawToken"
+      (geometryChange)="onGeometryChange($event)">
+    </app-map>
+  </main>
+
+  <section class="app-bottom-panel">
+    <div class="panel-section">
+      <span class="panel-label">Estado</span>
+      <strong>{{ pipelineStatus.statusText }}</strong>
+    </div>
+
+    <div class="panel-section">
+      <span class="panel-label">Caso activo</span>
+      <strong>{{ casePath || 'Sin caso seleccionado' }}</strong>
+    </div>
+
+    <div class="panel-section">
+      <span class="panel-label">Capa activa</span>
+      <strong>{{ selectedLayer || 'Ninguna' }}</strong>
+    </div>
+
+    <div class="panel-section">
+      <span class="panel-label">Geometría</span>
+      <strong>{{ drawnGeometry ? 'Definida' : 'No definida' }}</strong>
+    </div>
+
+    <details *ngIf="pipelineStatus.result" class="technical-details">
+      <summary>Ver salida técnica</summary>
+      <pre>{{ pipelineStatus.result | json }}</pre>
+    </details>
+
+    <details *ngIf="pipelineStatus.error" class="technical-details error">
+      <summary>Ver error técnico</summary>
+      <pre>{{ pipelineStatus.error | json }}</pre>
+    </details>
+  </section>
 </div>
