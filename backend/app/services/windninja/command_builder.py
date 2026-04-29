@@ -10,12 +10,12 @@ def get_dates_commands(wx_station_filename):
     print()
 
     wx_station_filename = str(Path(wx_station_filename).expanduser().resolve())
-    df0 = pd.read_csv(wx_station_filename)
+    df0 = pd.read_csv(wx_station_filename, encoding="utf-8-sig")
 
     # Rutas a los CSV individuales (robusto con rutas relativas/absolutas)
     p1 = _resolve_station_csv(wx_station_filename, df0["Station_File_List"].iloc[0])
 
-    df1 = pd.read_csv(p1, parse_dates=["date_time"])
+    df1 = pd.read_csv(p1, parse_dates=["date_time"], encoding="utf-8-sig")
 
     bool3 = True  # Solo un archivo, se asume correcto
 
@@ -48,14 +48,14 @@ def get_dates_commands2(wx_station_filename):
     print()
 
     wx_station_filename = str(Path(wx_station_filename).expanduser().resolve())
-    df0 = pd.read_csv(wx_station_filename)
+    df0 = pd.read_csv(wx_station_filename, encoding="utf-8-sig")
 
     # Rutas a los CSV individuales (robusto con rutas relativas/absolutas)
     p1 = _resolve_station_csv(wx_station_filename, df0["Station_File_List"].iloc[0])
     p2 = _resolve_station_csv(wx_station_filename, df0["Station_File_List"].iloc[1])
 
-    df1 = pd.read_csv(p1, parse_dates=["date_time"])
-    df2 = pd.read_csv(p2, parse_dates=["date_time"])
+    df1 = pd.read_csv(p1, parse_dates=["date_time"], encoding="utf-8-sig")
+    df2 = pd.read_csv(p2, parse_dates=["date_time"], encoding="utf-8-sig")
 
     bool1 = len(df1) == len(df2)
     bool2 = (df1["date_time"].values == df2["date_time"].values).sum() == len(df1)

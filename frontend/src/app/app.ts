@@ -5,7 +5,7 @@ import { Sidebar } from './components/sidebar/sidebar';
 import { MapComponent } from './components/map/map';
 import { PipelineStatus } from './components/topbar/topbar';
 
-export type DrawMode = 'none' | 'rectangle' | 'polygon';
+export type DrawMode = 'none' | 'support';
 
 @Component({
   selector: 'app-root',
@@ -18,6 +18,7 @@ export class App {
   casePath = '';
   selectedLayer = '';
   drawMode: DrawMode = 'none';
+
   drawnGeometry: Record<string, any> | null = null;
   clearDrawToken = 0;
 
@@ -48,7 +49,7 @@ export class App {
 
   onCaseCreated(path: string): void {
     this.casePath = path;
-    this.selectedLayer = 'dominio';
+    this.selectedLayer = 'apoyos';
   }
 
   onPipelineStatusChange(status: PipelineStatus): void {

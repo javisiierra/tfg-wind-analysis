@@ -28,6 +28,7 @@ export class Topbar {
   result: any = null;
   error: any = null;
   loading = false;
+  currentStep = '';
 
   constructor(private http: HttpClient) {}
 
@@ -37,35 +38,49 @@ export class Topbar {
 
       this.casePath = `${this.baseCasesPath}\\${dirHandle.name}`;
       this.caseChange.emit(this.casePath);
+
+      this.result = null;
+      this.error = null;
+      this.loading = false;
+      this.currentStep = '';
+
       this.emitPipelineStatus();
     } catch (err) {
       console.error('Selección de carpeta cancelada o no soportada:', err);
     }
   }
 
-  runBase() {
-    this.caseChange.emit(this.casePath);
-
-    this.loading = true;
-    this.result = null;
-    this.error = null;
+  prepareCase() {
+  if (!this.casePath) {
+    this.error = { message: 'Selecciona una carpeta primero' };
     this.emitPipelineStatus();
-
-    this.http.post('http://127.0.0.1:8000/api/v1/pipeline/run-base', {
-      case_path: this.casePath
-    }).subscribe({
-      next: (res) => {
-        this.result = res;
-        this.loading = false;
-        this.emitPipelineStatus();
-      },
-      error: (err) => {
-        this.error = err;
-        this.loading = false;
-        this.emitPipelineStatus();
-      }
-    });
+    return;
   }
+
+  this.caseChange.emit(this.casePath);
+
+  this.loading = true;
+  this.result = null;
+  this.error = null;
+  this.emitPipelineStatus();
+
+  this.http.post('http://127.0.0.1:8000/api/v1/case/import-folder', {
+    input_path: this.casePath
+  }).subscribe({
+    next: (res) => {
+      this.result = res;
+      this.loading = false;
+      this.emitPipelineStatus();
+    },
+    error: (err) => {
+      this.error = err;
+      this.loading = false;
+      this.emitPipelineStatus();
+    }
+  });
+}
+
+     
 
   private emitPipelineStatus(): void {
     this.pipelineStatusChange.emit({
@@ -77,9 +92,9 @@ export class Topbar {
   }
 
   get statusText(): string {
-    if (this.loading) return 'Ejecutando pipeline base...';
-    if (this.error) return 'Error en la ejecución';
-    if (this.result) return 'Pipeline base completado';
+    if (this.loading) return this.currentStep || 'Preparando caso...';
+    if (this.error) return 'Error en la preparación';
+    if (this.result) return 'Caso preparado correctamente';
     return 'Listo';
   }
 }

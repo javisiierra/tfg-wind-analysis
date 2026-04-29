@@ -16,8 +16,11 @@ import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import GeoJSONFormat from 'ol/format/GeoJSON';
 import { fromLonLat } from 'ol/proj';
-import Draw, { createBox } from 'ol/interaction/Draw';
+import Draw from 'ol/interaction/Draw';
 import { DrawMode } from '../../app';
+
+import LineString from 'ol/geom/LineString';
+import Point from 'ol/geom/Point';
 
 import Style from 'ol/style/Style';
 import Fill from 'ol/style/Fill';
@@ -44,12 +47,14 @@ export class MapComponent implements AfterViewInit, OnChanges {
 
   vanosLayer: VectorLayer<VectorSource> | undefined;
   displayLayer: VectorLayer<VectorSource> | undefined;
+  supportLineLayer: VectorLayer<VectorSource> | undefined;
   drawLayer: VectorLayer<VectorSource> | undefined;
 
   drawInteraction: Draw | null = null;
 
   private tooltipElement: HTMLElement | null = null;
   private currentTooltipLayer = '';
+  private drawnSupportCoordinates: number[][] = [];
 
   ngAfterViewInit(): void {
     this.tooltipElement = document.getElementById('map-tooltip');
@@ -64,15 +69,23 @@ export class MapComponent implements AfterViewInit, OnChanges {
       style: (feature) => this.getFeatureStyle(feature as Feature<Geometry>, this.selectedLayer)
     });
 
-    this.drawLayer = new VectorLayer({
+    this.supportLineLayer = new VectorLayer({
       source: new VectorSource(),
       style: new Style({
         stroke: new Stroke({
-          color: '#f59e0b',
+          color: '#16a34a',
           width: 3
-        }),
-        fill: new Fill({
-          color: 'rgba(245, 158, 11, 0.18)'
+        })
+      })
+    });
+
+    this.drawLayer = new VectorLayer({
+      source: new VectorSource(),
+      style: new Style({
+        image: new CircleStyle({
+          radius: 7,
+          fill: new Fill({ color: '#16a34a' }),
+          stroke: new Stroke({ color: '#ffffff', width: 2 })
         })
       })
     });
@@ -85,6 +98,7 @@ export class MapComponent implements AfterViewInit, OnChanges {
         }),
         this.vanosLayer,
         this.displayLayer,
+        this.supportLineLayer,
         this.drawLayer
       ],
       view: new View({
@@ -167,6 +181,7 @@ export class MapComponent implements AfterViewInit, OnChanges {
       this.displayLayer?.changed();
 
       const source = this.displayLayer?.getSource();
+
       if (source) {
         this.fitSource(source);
       }
@@ -175,7 +190,6 @@ export class MapComponent implements AfterViewInit, OnChanges {
         'Peores apoyos con IDs globales:',
         worstFeatures.map(f => f.getProperties())
       );
-
     } catch (err) {
       console.error('Error cargando peores apoyos con IDs globales:', err);
     }
@@ -289,11 +303,6 @@ export class MapComponent implements AfterViewInit, OnChanges {
       return;
     }
 
-    if (layerName === 'worst') {
-      this.assignFallbackWorstSupportIds(features);
-      return;
-    }
-
     if (layerName === 'vanos') {
       this.assignFallbackVanoIds(features);
     }
@@ -321,19 +330,6 @@ export class MapComponent implements AfterViewInit, OnChanges {
     });
   }
 
-  private assignFallbackWorstSupportIds(features: Feature<Geometry>[]): void {
-    const pointFeatures = features.filter(feature => {
-      const geometry = feature.getGeometry();
-      return geometry?.getType() === 'Point';
-    });
-
-    pointFeatures.forEach((feature) => {
-      if (!this.getFeatureIdentifier(feature)) {
-        feature.set('generated_id', 'Sin ID general');
-      }
-    });
-  }
-
   private assignWorstGlobalIdsFromSupports(
     worstFeatures: Feature<Geometry>[],
     apoyoFeatures: Feature<Geometry>[]
@@ -350,7 +346,6 @@ export class MapComponent implements AfterViewInit, OnChanges {
       const worstExtent = worst.getGeometry()?.getExtent();
 
       if (!worstExtent) {
-        worst.set('global_support_id', 'Sin ID general');
         return;
       }
 
@@ -381,11 +376,15 @@ export class MapComponent implements AfterViewInit, OnChanges {
         }
       });
 
-      if (nearestSupport) {
-        const globalId = this.getFeatureIdentifier(nearestSupport);
-        worst.set('global_support_id', globalId ?? 'Sin ID general');
-      } else {
-        worst.set('global_support_id', 'Sin ID general');
+      if (!nearestSupport) {
+        console.warn('No se encontró apoyo cercano para un peor apoyo.');
+        return;
+      }
+
+      const globalId = this.getFeatureIdentifier(nearestSupport);
+
+      if (globalId !== null) {
+        worst.set('global_support_id', globalId);
       }
     });
   }
@@ -545,6 +544,7 @@ export class MapComponent implements AfterViewInit, OnChanges {
     if (this.currentTooltipLayer === 'apoyos') {
       const order = feature.get('support_order');
       const total = feature.get('support_total');
+
       const endpointText =
         order === 1 ? '<br><strong>Inicio de línea</strong>' :
         order === total ? '<br><strong>Final de línea</strong>' :
@@ -633,35 +633,83 @@ export class MapComponent implements AfterViewInit, OnChanges {
 
     this.drawInteraction = new Draw({
       source: drawSource,
-      type: this.drawMode === 'rectangle' ? 'Circle' : 'Polygon',
-      geometryFunction: this.drawMode === 'rectangle' ? createBox() : undefined
-    });
-
-    this.drawInteraction.on('drawstart', () => {
-      drawSource.clear();
+      type: 'Point'
     });
 
     this.drawInteraction.on('drawend', (event) => {
       const geometry = event.feature.getGeometry();
 
-      if (!geometry) {
+      if (!geometry || geometry.getType() !== 'Point') {
         this.geometryChange.emit(null);
         return;
       }
+
+      const pointGeometry = geometry as Point;
+      const coordinate = pointGeometry.getCoordinates();
+
+      this.drawnSupportCoordinates.push(coordinate);
+
+      const supportOrder = this.drawnSupportCoordinates.length;
+      const supportId = `AP-${supportOrder}`;
+
+      event.feature.set('id', supportId);
+      event.feature.set('tipo', 'apoyo');
+      event.feature.set('support_order', supportOrder);
+      event.feature.set('support_total', supportOrder);
+
+      this.updateDrawnSupportsTotal();
+      this.updateTemporarySupportLine();
 
       const geojsonGeometry = new GeoJSONFormat().writeGeometryObject(
         geometry.clone().transform('EPSG:3857', 'EPSG:4326')
       ) as Record<string, any>;
 
       this.geometryChange.emit(geojsonGeometry);
-      this.updateDrawInteraction();
     });
 
     this.map.addInteraction(this.drawInteraction);
   }
 
+  private updateDrawnSupportsTotal(): void {
+    const source = this.drawLayer?.getSource();
+
+    if (!source) {
+      return;
+    }
+
+    const total = this.drawnSupportCoordinates.length;
+
+    source.getFeatures().forEach(feature => {
+      feature.set('support_total', total);
+    });
+
+    source.changed();
+  }
+
+  private updateTemporarySupportLine(): void {
+    const source = this.supportLineLayer?.getSource();
+
+    if (!source) {
+      return;
+    }
+
+    source.clear();
+
+    if (this.drawnSupportCoordinates.length < 2) {
+      return;
+    }
+
+    const line = new Feature({
+      geometry: new LineString(this.drawnSupportCoordinates)
+    });
+
+    source.addFeature(line);
+  }
+
   private clearDrawGeometry(): void {
     this.drawLayer?.getSource()?.clear();
+    this.supportLineLayer?.getSource()?.clear();
+    this.drawnSupportCoordinates = [];
     this.geometryChange.emit(null);
   }
 }

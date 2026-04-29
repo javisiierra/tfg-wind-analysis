@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
-import tomllib
 import geopandas as gpd
+import tomllib
 
 from app.core.paths import join_base
 
@@ -30,7 +30,6 @@ def _infer_lat_lon_from_geometry(path: Path) -> tuple[Optional[float], Optional[
             return None, None
 
         if gdf.crs is None:
-            # Asunción razonable para tu caso actual
             gdf = gdf.set_crs(epsg=25830)
 
         gdf = gdf.to_crs(epsg=4326)
@@ -43,20 +42,17 @@ def _infer_lat_lon_from_geometry(path: Path) -> tuple[Optional[float], Optional[
 
 @dataclass(frozen=True)
 class Config:
-    # --- Meta / control ---
     general_path: Optional[Path] = None
     line: Optional[str] = None
     Station_Name: str = "Station1"
     p: float = 0.20
 
-    # --- Paths (núcleo común) ---
     in_shp: Optional[Path] = None
     out_shp: Optional[Path] = None
     out_rec_shp: Optional[Path] = None
     out_rec_exp_shp: Optional[Path] = None
     out_mdt_tif: Optional[Path] = None
 
-    # --- Alineación con el resto de notebooks ---
     in_xlsx: Optional[Path] = None
     out_apoyos_shp: Optional[Path] = None
     apoyos_epsg_arg: Optional[int] = None
@@ -77,16 +73,15 @@ class Config:
     wr_csv: Optional[Path] = None
     wr_plot: Optional[Path] = None
     wr_title: Optional[str] = None
-    
+
     mesh_resolution: Optional[float] = 100
     num_threads: Optional[int] = 8
     time_zone: Optional[str] = "Europe/Madrid"
     temperature: Optional[float] = 20
     n_directions: Optional[int] = 16
     height: Optional[float] = 15
-    
+
     num_sensores: Optional[int] = 1
-    
     weather_source: Optional[str] = "power"
 
     time_start: Optional[str] = None
@@ -118,7 +113,6 @@ class Config:
         location = data.get("location", {})
         rename = data.get("rename", {})
 
-        # La base real del caso es siempre la carpeta donde está el config.toml
         base = cfg_path.parent
 
         def opt_path(key: str) -> Optional[Path]:
@@ -168,15 +162,15 @@ class Config:
             wr_csv=opt_path("wr_csv"),
             wr_plot=opt_path("wr_plot"),
             wr_title=paths.get("wr_title", data.get("wr_title", None)),
-            
-            mesh_resolution=float(wn.get("mesh_resolution")),
-            num_threads=int(wn.get("num_threads")),
-            time_zone=wn.get("time_zone"),
-            temperature=float(wn.get("temperature")),
-            n_directions=int(wn.get("n_directions")),
-            height=float(wn.get("height")),
 
-            weather_source=source.get("name", "").strip().lower(),
+            mesh_resolution=float(wn.get("mesh_resolution", 200)),
+            num_threads=int(wn.get("num_threads", 8)),
+            time_zone=wn.get("time_zone", "Europe/Madrid"),
+            temperature=float(wn.get("temperature", 20)),
+            n_directions=int(wn.get("n_directions", 36)),
+            height=float(wn.get("height", 15)),
+
+            weather_source=source.get("name", "power").strip().lower(),
             apply_rename=bool(rename.get("apply", False)),
         )
 
@@ -195,10 +189,12 @@ class Config:
 
         line = base.name
 
-        # Entradas por convención / heurística
+        # Flujo nuevo: priorizar dominio SHP generado/importado.
+        # GeoJSON se deja para visualización web, no como entrada principal del DEM.
         in_shp = _first_existing(base, [
-            "SHP/dominio.geojson",
             "SHP/dominio.shp",
+            "SHP/traza.shp",
+            "SHP/dominio.geojson",
             f"{line}/{line.replace('_', '-')}.shp",
             f"{line}/{line}.shp",
             f"{line}.shp",
@@ -207,9 +203,16 @@ class Config:
         ])
 
         in_xlsx = _first_existing(base, [
-            "Apoyos/Apoyos Corredoria-Grado.xlsx",
             f"Apoyos/Apoyos {line}.xlsx",
+            "Apoyos/apoyos.xlsx",
+            "Apoyos/Apoyos Corredoria-Grado.xlsx",
         ])
+
+        out_apoyos_shp = _first_existing(base, [
+            "Apoyos/apoyos.shp",
+            f"Apoyos/Apoyos {line}.shp",
+            "Apoyos/Apoyos Corredoria-Grado.shp",
+        ]) or _ensure_path(base, "Apoyos/apoyos.shp")
 
         in_weather_file = _first_existing(base, [
             "Weather_Input_Data/WN_PointInit_Path.csv",
@@ -232,7 +235,7 @@ class Config:
             out_mdt_tif=_ensure_path(base, f"MDT_WN/MDT_WN_{line}.tif"),
 
             in_xlsx=in_xlsx,
-            out_apoyos_shp=_ensure_path(base, f"Apoyos/Apoyos {line}.shp"),
+            out_apoyos_shp=out_apoyos_shp,
             apoyos_epsg_arg=25830,
 
             in_weather_file=in_weather_file,
