@@ -340,12 +340,9 @@ def _generate_weather_for_cfg(cfg):
         station_filenames.append(station_csv_file.name)
         station_full_paths.append(station_csv_file.resolve())
 
-    station_df = pd.DataFrame({"Station_File_List": station_filenames})
-    station_df.to_csv(
-        station_list_file,
-        index=False,
+    station_list_file.write_text(
+        "Station_File_List,\n" + "\n".join(station_filenames) + "\n",
         encoding="utf-8",
-        lineterminator="\n",
     )
 
     print("Generado WN_PointInit_Path.csv:", station_list_file)
