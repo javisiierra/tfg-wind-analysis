@@ -1,27 +1,157 @@
 <div class="sidebar">
-  <h3>Ejecución</h3>
+  <section class="sidebar-card">
+    <div class="section-header">
+      <span class="section-icon">📁</span>
+      <div>
+        <h3>Crear caso</h3>
+        <p>Define el dominio de simulación</p>
+      </div>
+    </div>
 
-  <button (click)="runWindNinja()">Run WindNinja</button>
-  <button (click)="runRename()">Run Rename</button>
-  <button (click)="runWindRose()">Run Wind Rose</button>
+    <label class="field-label">Nombre del caso</label>
+    <input
+      class="text-input"
+      [(ngModel)]="caseName"
+      placeholder="Ej: caso_corredoria_01"
+    />
 
-  <h3>Capas</h3>
+    <div class="button-grid">
+      <button class="btn secondary" (click)="startRectangleDraw()">
+        Dibujar rectángulo
+      </button>
 
-  <button (click)="showApoyos()">Mostrar apoyos</button>
-  <button (click)="showVanos()">Mostrar vanos</button>
-  <button (click)="showDominio()">Mostrar dominio</button>
+      <button class="btn secondary" (click)="startPolygonDraw()">
+        Dibujar polígono
+      </button>
+    </div>
 
-  <div *ngIf="loading" class="result-box">
-    <strong>⏳ Ejecutando {{ currentAction }}...</strong>
-  </div>
+    <button class="btn ghost" (click)="clearDrawnGeometry()">
+      Limpiar dibujo
+    </button>
 
-  <div *ngIf="result" class="result-box">
-    <strong>Resultado</strong>
-    <pre>{{ result | json }}</pre>
-  </div>
+    <div class="geometry-pill" [class.ok]="drawnGeometry">
+      {{ drawnGeometry ? 'Dominio dibujado' : 'Dominio no definido' }}
+    </div>
 
-  <div *ngIf="error" class="result-box">
-    <strong>Error</strong>
-    <pre>{{ error | json }}</pre>
-  </div>
+    <button class="btn primary" (click)="saveCase()">
+      Guardar caso
+    </button>
+  </section>
+
+  <section class="sidebar-card">
+    <div class="section-header">
+      <span class="section-icon">✅</span>
+      <div>
+        <h3>Estado del caso</h3>
+        <p>Validación de entradas necesarias</p>
+      </div>
+    </div>
+
+    <div class="status-list">
+      <div class="status-item" [class.ok]="hasDomain">
+        <span>Dominio</span>
+        <strong>{{ hasDomain ? 'OK' : 'Pendiente' }}</strong>
+      </div>
+
+      <div class="status-item" [class.ok]="hasDem">
+        <span>DEM</span>
+        <strong>{{ hasDem ? 'OK' : 'Pendiente' }}</strong>
+      </div>
+
+      <div class="status-item" [class.ok]="hasWeatherData">
+        <span>Meteorología</span>
+        <strong>{{ hasWeatherData ? 'OK' : 'Pendiente' }}</strong>
+      </div>
+
+      <div class="status-item" [class.ok]="readyForWindNinja">
+        <span>WindNinja</span>
+        <strong>{{ readyForWindNinja ? 'Listo' : 'No listo' }}</strong>
+      </div>
+    </div>
+
+    <button class="btn ghost" (click)="refreshCaseStatus()" [disabled]="!casePath">
+      Refrescar estado
+    </button>
+  </section>
+
+  <section class="sidebar-card">
+    <div class="section-header">
+      <span class="section-icon">⚙️</span>
+      <div>
+        <h3>Ejecución</h3>
+        <p>Pipeline de preparación y simulación</p>
+      </div>
+    </div>
+
+    <button class="btn secondary" (click)="runGenerateDem()" [disabled]="!casePath">
+      Generar DEM
+    </button>
+
+    <button class="btn secondary" (click)="runGenerateWeather()" [disabled]="!casePath">
+      Generar meteorología
+    </button>
+
+    <button class="btn primary" (click)="runWindNinja()" [disabled]="!readyForWindNinja">
+      Run WindNinja
+    </button>
+
+    <div *ngIf="casePath && !readyForWindNinja" class="warning-box">
+      Este caso aún no está listo para ejecutar WindNinja.
+    </div>
+  </section>
+
+  <section class="sidebar-card">
+    <div class="section-header">
+      <span class="section-icon">🗺️</span>
+      <div>
+        <h3>Capas</h3>
+        <p>Visualización en el mapa</p>
+      </div>
+    </div>
+
+    <div class="layer-grid">
+      <button class="layer-btn" (click)="showDominio()">Dominio</button>
+      <button class="layer-btn" (click)="showApoyos()">Apoyos</button>
+      <button class="layer-btn" (click)="showVanos()">Vanos</button>
+      <button class="layer-btn" (click)="showWorstSupports()">Peores apoyos</button>
+    </div>
+  </section>
+
+  <section class="sidebar-card">
+    <div class="section-header">
+      <span class="section-icon">📊</span>
+      <div>
+        <h3>Análisis</h3>
+        <p>Postprocesado de resultados</p>
+      </div>
+    </div>
+
+    <button class="btn secondary" (click)="runRename()" [disabled]="!casePath">
+      Run Rename
+    </button>
+
+    <button class="btn secondary" (click)="runWindRose()" [disabled]="!casePath">
+      Run Wind Rose
+    </button>
+
+    <button class="btn secondary" (click)="runWorstSupports()" [disabled]="!casePath">
+      Calcular 4 peores apoyos
+    </button>
+  </section>
+
+  <section *ngIf="loading || result || error" class="sidebar-card output-card">
+    <div *ngIf="loading" class="loading-box">
+      Ejecutando {{ currentAction }}...
+    </div>
+
+    <details *ngIf="result">
+      <summary>Resultado técnico</summary>
+      <pre>{{ result | json }}</pre>
+    </details>
+
+    <details *ngIf="error" class="error-details">
+      <summary>Error técnico</summary>
+      <pre>{{ error | json }}</pre>
+    </details>
+  </section>
 </div>

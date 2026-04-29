@@ -1,1 +1,16 @@
-<div id="map"></div>
+<div class="map-wrapper">
+  <div id="map"></div>
+
+  <div class="map-badge">
+    Capa activa: <strong>{{ selectedLayer || 'Ninguna' }}</strong>
+  </div>
+
+  <div class="map-legend">
+    <div><span class="legend-line"></span> Vanos / línea</div>
+    <div><span class="legend-dot support"></span> Apoyos</div>
+    <div><span class="legend-dot worst"></span> Peores apoyos</div>
+    <div><span class="legend-area"></span> Dominio</div>
+  </div>
+
+  <div id="map-tooltip" class="map-tooltip"></div>
+</div>

@@ -4,7 +4,101 @@
   height: 100%;
 }
 
+.map-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
 #map {
   width: 100%;
   height: 100%;
+}
+
+.map-badge {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 10;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.9);
+  color: #e2e8f0;
+  font-size: 12px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.22);
+}
+
+.map-badge strong {
+  color: white;
+}
+
+.map-legend {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #334155;
+  font-size: 12px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.18);
+}
+
+.map-legend div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-line {
+  width: 24px;
+  height: 3px;
+  border-radius: 999px;
+  background: #2563eb;
+}
+
+.legend-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.legend-dot.support {
+  background: #16a34a;
+}
+
+.legend-dot.worst {
+  background: #dc2626;
+}
+
+.legend-area {
+  width: 18px;
+  height: 12px;
+  display: inline-block;
+  border: 2px solid #f59e0b;
+  background: rgba(245, 158, 11, 0.15);
+}
+
+.map-tooltip {
+  position: absolute;
+  z-index: 20;
+  display: none;
+  pointer-events: none;
+  max-width: 240px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.94);
+  color: #f8fafc;
+  font-size: 12px;
+  line-height: 1.35;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.28);
+}
+
+.map-tooltip strong {
+  color: white;
 }
