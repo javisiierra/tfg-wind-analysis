@@ -19,7 +19,7 @@ export class App {
   selectedLayer = '';
   drawMode: DrawMode = 'none';
 
-  drawnGeometry: Record<string, any> | null = null;
+  drawnGeometries: Record<string, any>[] = [];
   clearDrawToken = 0;
 
   pipelineStatus: PipelineStatus = {
@@ -37,12 +37,12 @@ export class App {
     this.drawMode = mode;
   }
 
-  onGeometryChange(geometry: Record<string, any> | null): void {
-    this.drawnGeometry = geometry;
+  onGeometryChange(geometries: Record<string, any>[] | null): void {
+    this.drawnGeometries = geometries ?? [];
   }
 
   onClearDrawing(): void {
-    this.drawnGeometry = null;
+    this.drawnGeometries = [];
     this.drawMode = 'none';
     this.clearDrawToken += 1;
   }

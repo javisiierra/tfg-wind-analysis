@@ -13,7 +13,7 @@ import { DrawMode } from '../../app';
 })
 export class Sidebar implements OnChanges {
   @Input() casePath: string = '';
-  @Input() drawnGeometry: Record<string, any> | null = null;
+  @Input() drawnGeometries: Record<string, any>[] = [];
 
   @Output() layerSelected = new EventEmitter<string>();
   @Output() drawModeChange = new EventEmitter<DrawMode>();
@@ -88,47 +88,68 @@ export class Sidebar implements OnChanges {
     this.clearDrawing.emit();
   }
 
-  saveCase() {
+  async saveCase() {
     const trimmedName = this.caseName.trim();
 
-    if (!trimmedName) {
-      this.error = { message: 'Debes indicar un case_name.' };
+    if (!trimmedName && !this.casePath) {
+      this.error = { message: 'Debes indicar un case_name o tener un caso activo.' };
       return;
     }
 
-    if (!this.drawnGeometry) {
-      this.error = { message: 'Debes dibujar un apoyo antes de guardar.' };
+    if (!this.drawnGeometries.length) {
+      this.error = { message: 'Debes dibujar al menos un apoyo antes de guardar.' };
       return;
     }
 
     this.loading = true;
     this.result = null;
     this.error = null;
-    this.currentAction = 'Guardar apoyo';
+    this.currentAction = 'Guardar apoyos';
 
-    this.http.post('http://127.0.0.1:8000/api/v1/supports/create', {
-      case_name: trimmedName,
-      geometry: this.drawnGeometry,
-      epsg: 4326
-    }).subscribe({
-      next: (res: any) => {
-        this.result = res;
-        this.loading = false;
+    try {
+      let lastResponse: any = null;
 
-        if (res?.case_path) {
-          this.caseCreated.emit(res.case_path);
-          this.layerSelected.emit('apoyos');
+      for (const geometry of this.drawnGeometries) {
+        const payload: any = {
+          geometry,
+          epsg: 4326
+        };
 
-          setTimeout(() => {
-            this.refreshCaseStatus();
-          }, 100);
+        if (this.casePath) {
+          payload.case_path = this.casePath;
+        } else {
+          payload.case_name = trimmedName;
         }
-      },
-      error: (err) => {
-        this.error = err;
-        this.loading = false;
+
+        lastResponse = await this.http.post(
+          'http://127.0.0.1:8000/api/v1/supports/create',
+          payload
+        ).toPromise();
       }
-    });
+
+      this.result = {
+        status: 'ok',
+        message: `Guardados ${this.drawnGeometries.length} apoyos.`,
+        last_response: lastResponse
+      };
+
+      if (lastResponse?.case_path) {
+        this.caseCreated.emit(lastResponse.case_path);
+      }
+
+      this.layerSelected.emit('apoyos');
+      this.clearDrawing.emit();
+
+      setTimeout(() => {
+        this.refreshCaseStatus();
+      }, 100);
+
+      this.loading = false;
+    } catch (err) {
+      this.error = err;
+      this.loading = false;
+      this.refreshCaseStatus();
+    }
   }
 
   runGenerateDomainFromSupports() {

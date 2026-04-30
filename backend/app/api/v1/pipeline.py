@@ -2,6 +2,7 @@ import json
 import traceback
 from pathlib import Path
 from typing import Any
+import numpy as np
 
 import geopandas as gpd
 from fastapi import APIRouter, HTTPException
@@ -37,7 +38,8 @@ class DomainFromSupportsRequest(BaseModel):
 
 
 class SupportCreateRequest(BaseModel):
-    case_name: str
+    case_path: str | None = None
+    case_name: str | None = None
     geometry: dict[str, Any]
     epsg: int = 4326
 
@@ -382,6 +384,110 @@ def health():
 # ============================================================
 
 @router.post(
+    "/supports/generate-vanos",
+    tags=["Apoyos"],
+    summary="Generar vanos desde apoyos",
+    description="Genera automáticamente los vanos (líneas entre apoyos consecutivos).",
+)
+def generate_vanos_from_supports(request: PipelineRequest):
+    try:
+        case_path = Path(request.case_path)
+
+        supports_path = get_supports_shapefile_path(request.case_path)
+
+        if supports_path is None or not supports_path.exists():
+            raise HTTPException(
+                status_code=400,
+                detail="No existen apoyos para generar vanos.",
+            )
+
+        gdf = gpd.read_file(supports_path)
+
+        if gdf.empty:
+            raise HTTPException(
+                status_code=400,
+                detail="El shapefile de apoyos está vacío.",
+            )
+
+        if gdf.crs is None:
+            gdf = gdf.set_crs(epsg=25830)
+
+        gdf = gdf.to_crs(epsg=25830)
+
+        if "sup_order" in gdf.columns:
+            gdf = gdf.sort_values("sup_order")
+        elif "support_order" in gdf.columns:
+            gdf = gdf.sort_values("support_order")
+        elif "support_or" in gdf.columns:
+            gdf = gdf.sort_values("support_or")
+
+        points = [
+            geom for geom in gdf.geometry
+            if geom is not None and geom.geom_type == "Point"
+        ]
+
+        if len(points) < 2:
+            raise HTTPException(
+                status_code=400,
+                detail="Se necesitan al menos 2 apoyos para generar vanos.",
+            )
+
+        records = []
+
+        for i in range(len(points) - 1):
+            p1 = points[i]
+            p2 = points[i + 1]
+
+            dx = p2.x - p1.x
+            dy = p2.y - p1.y
+
+            direccion = (np.degrees(np.arctan2(dx, dy)) + 360.0) % 360.0
+
+            records.append({
+                "id": f"V-{i+1}",
+                "from_ap": f"AP-{i+1}",
+                "to_ap": f"AP-{i+2}",
+                "direccion": float(direccion),
+                "geometry": LineString([p1, p2]),
+            })
+
+        vanos_gdf = gpd.GeoDataFrame(
+            records,
+            geometry="geometry",
+            crs="EPSG:25830",
+        )
+
+        out_path = case_path / "Calculos" / f"{case_path.name}_vanos.shp"
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # limpiar shapefile previo
+        for ext in [".shp", ".shx", ".dbf", ".prj", ".cpg"]:
+            p = out_path.with_suffix(ext)
+            if p.exists():
+                p.unlink()
+
+        vanos_gdf.to_file(out_path, driver="ESRI Shapefile", encoding="UTF-8")
+
+        return {
+            "status": "ok",
+            "case_path": request.case_path,
+            "vanos_shp": str(out_path),
+            "n_vanos": len(vanos_gdf),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": f"Error generando vanos: {e}",
+                "traceback": traceback.format_exc(),
+            },
+        )
+
+@router.post(
     "/supports/create",
     tags=["Apoyos"],
     summary="Crear apoyo",
@@ -389,77 +495,181 @@ def health():
 )
 def create_support(request: SupportCreateRequest):
     try:
-        folders = get_or_create_case_structure(request.case_name)
+        if request.case_path:
+            case_path = Path(request.case_path)
+        elif request.case_name:
+            case_path = BASE_ROOT / request.case_name
+        else:
+            raise HTTPException(status_code=400, detail="Debe indicarse case_path o case_name.")
 
-        supports_geojson_path = folders["apoyos"] / "apoyos.geojson"
-        supports_shp_path = folders["apoyos"] / "apoyos.shp"
+        apoyos_dir = case_path / "Apoyos"
+        apoyos_dir.mkdir(parents=True, exist_ok=True)
+
+        supports_geojson_path = apoyos_dir / "apoyos.geojson"
+        supports_shp_path = apoyos_dir / "apoyos.shp"
 
         if request.geometry.get("type") != "Point":
-            raise HTTPException(
-                status_code=400,
-                detail="La geometría del apoyo debe ser de tipo Point.",
-            )
+            raise HTTPException(status_code=400, detail="La geometría del apoyo debe ser de tipo Point.")
 
-        if supports_geojson_path.exists():
-            feature_collection = json.loads(supports_geojson_path.read_text(encoding="utf-8"))
+        new_geom = shape(request.geometry)
+
+        if supports_shp_path.exists():
+            old_gdf = gpd.read_file(supports_shp_path)
+
+            if old_gdf.crs is None:
+                old_gdf = old_gdf.set_crs(epsg=25830)
+
+            old_gdf = old_gdf.to_crs(epsg=25830)
+            old_gdf = old_gdf.rename(columns={
+                "support_order": "sup_order",
+                "support_or": "sup_order",
+                "support_total": "sup_total",
+                "support_to": "sup_total",
+            })
+
+            if "sup_order" in old_gdf.columns:
+                old_gdf = old_gdf.sort_values("sup_order")
+                next_order = int(old_gdf["sup_order"].max()) + 1
+            else:
+                next_order = len(old_gdf) + 1
         else:
-            feature_collection = {
-                "type": "FeatureCollection",
-                "features": [],
-            }
+            old_gdf = None
+            next_order = 1
 
-        support_number = len(feature_collection["features"]) + 1
-        support_id = f"AP-{support_number}"
+        support_id = f"AP-{next_order}"
 
-        feature_collection["features"].append({
-            "type": "Feature",
-            "properties": {
+        new_gdf = gpd.GeoDataFrame(
+            [{
                 "id": support_id,
-                "support_order": support_number,
-                "case_name": request.case_name,
+                "sup_order": next_order,
+                "case_name": case_path.name,
                 "source": "drawn_in_web",
-                "epsg": request.epsg,
-            },
-            "geometry": request.geometry,
-        })
+                "epsg": 25830,
+                "sup_total": next_order,
+                "geometry": new_geom,
+            }],
+            geometry="geometry",
+            crs=f"EPSG:{request.epsg}",
+        ).to_crs(epsg=25830)
 
-        support_total = len(feature_collection["features"])
+        if old_gdf is not None and not old_gdf.empty:
+            import pandas as pd
 
-        for feature in feature_collection["features"]:
-            feature["properties"]["support_total"] = support_total
+            gdf = pd.concat([old_gdf, new_gdf], ignore_index=True)
+            gdf = gpd.GeoDataFrame(gdf, geometry="geometry", crs="EPSG:25830")
+        else:
+            gdf = new_gdf
 
-        supports_geojson_path.write_text(
-            json.dumps(feature_collection, ensure_ascii=False, indent=2),
-            encoding="utf-8",
+        gdf = gdf.sort_values("sup_order")
+
+        support_total = len(gdf)
+        gdf["sup_total"] = support_total
+        gdf["epsg"] = 25830
+
+        keep_columns = [
+            "id",
+            "sup_order",
+            "case_name",
+            "source",
+            "epsg",
+            "sup_total",
+            "geometry",
+        ]
+        gdf = gdf[[c for c in keep_columns if c in gdf.columns]]
+
+        for ext in [".shp", ".shx", ".dbf", ".prj", ".cpg"]:
+            p = supports_shp_path.with_suffix(ext)
+            if p.exists():
+                p.unlink()
+
+        gdf.to_file(
+            supports_shp_path,
+            driver="ESRI Shapefile",
+            encoding="UTF-8",
         )
 
-        rows = [
-            {
-                **feature["properties"],
-                "geometry": shape(feature["geometry"]),
-            }
-            for feature in feature_collection["features"]
+        gdf.to_crs(epsg=4326).to_file(
+            supports_geojson_path,
+            driver="GeoJSON",
+        )
+
+        # Generar vanos/línea entre apoyos consecutivos
+        vanos_path = case_path / "Calculos" / f"{case_path.name}_vanos.shp"
+        vanos_path.parent.mkdir(parents=True, exist_ok=True)
+
+        points = [
+            geom
+            for geom in gdf.geometry
+            if geom is not None and geom.geom_type == "Point"
         ]
 
-        gdf = gpd.GeoDataFrame(rows, geometry="geometry", crs=f"EPSG:{request.epsg}")
-        gdf.to_crs(epsg=25830).to_file(supports_shp_path)
+        if len(points) >= 2:
+            records = []
+
+            for i in range(len(points) - 1):
+                p1 = points[i]
+                p2 = points[i + 1]
+
+                dx = p2.x - p1.x
+                dy = p2.y - p1.y
+                direccion = (np.degrees(np.arctan2(dx, dy)) + 360.0) % 360.0
+
+                records.append({
+                    "id": f"V-{i + 1}",
+                    "from_ap": f"AP-{i + 1}",
+                    "to_ap": f"AP-{i + 2}",
+                    "direccion": float(direccion),
+                    "geometry": LineString([p1, p2]),
+                })
+
+            vanos_gdf = gpd.GeoDataFrame(
+                records,
+                geometry="geometry",
+                crs="EPSG:25830",
+            )
+
+            for ext in [".shp", ".shx", ".dbf", ".prj", ".cpg"]:
+                p = vanos_path.with_suffix(ext)
+                if p.exists():
+                    p.unlink()
+
+            vanos_gdf.to_file(
+                vanos_path,
+                driver="ESRI Shapefile",
+                encoding="UTF-8",
+            )
+
+        print("Guardado apoyo:", support_id)
+        print("Total apoyos:", support_total)
+        print("Ruta apoyos:", supports_shp_path)
+        print("Ruta vanos:", vanos_path)
 
         return {
             "status": "ok",
-            "case_name": request.case_name,
-            "case_path": str(folders["case"]),
+            "case_name": case_path.name,
+            "case_path": str(case_path),
             "support_id": support_id,
             "support_total": support_total,
             "supports_geojson": str(supports_geojson_path),
             "supports_shp": str(supports_shp_path),
+            "vanos_shp": str(vanos_path),
+            "n_vanos": max(0, support_total - 1),
         }
 
     except HTTPException:
         raise
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"No se pudo guardar el apoyo: {e}")
-
-
+        import traceback
+        tb = traceback.format_exc()
+        print(tb)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": f"No se pudo guardar el apoyo: {e}",
+                "traceback": tb,
+            },
+        )
 # ============================================================
 # Dominio
 # ============================================================
@@ -475,11 +685,21 @@ def create_support(request: SupportCreateRequest):
 )
 def generate_domain_from_supports(request: DomainFromSupportsRequest):
     try:
-        result = _generate_domain_from_supports_logic(request.case_path, buffer_m=request.buffer_m)
+        supports_path = get_supports_shapefile_path(request.case_path)
+
+        print("case_path:", request.case_path)
+        print("supports_path:", supports_path)
+        print("exists:", supports_path.exists())
+
+        result = _generate_domain_from_supports_logic(
+            request.case_path,
+            buffer_m=request.buffer_m,
+        )
+
         return {
             "status": "ok",
             "case_path": request.case_path,
-            "supports_file": str(get_supports_shapefile_path(request.case_path)),
+            "supports_file": str(supports_path),
             **result,
         }
 
@@ -782,7 +1002,7 @@ def run_rename_api(request: PipelineRequest):
     try:
         from app.scripts.run_local_pipeline import run_rename_stage
 
-        result = run_rename_stage(cfg)
+        result = run_rename_stage(cfg, apply=True)
 
         return {
             "status": "ok",

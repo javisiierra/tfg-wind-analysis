@@ -41,7 +41,7 @@ export class MapComponent implements AfterViewInit, OnChanges {
   @Input() drawMode: DrawMode = 'none';
   @Input() clearDrawToken = 0;
 
-  @Output() geometryChange = new EventEmitter<Record<string, any> | null>();
+  @Output() geometryChange = new EventEmitter<Record<string, any>[] | null>();
 
   map: Map | undefined;
 
@@ -185,11 +185,6 @@ export class MapComponent implements AfterViewInit, OnChanges {
       if (source) {
         this.fitSource(source);
       }
-
-      console.log(
-        'Peores apoyos con IDs globales:',
-        worstFeatures.map(f => f.getProperties())
-      );
     } catch (err) {
       console.error('Error cargando peores apoyos con IDs globales:', err);
     }
@@ -200,12 +195,8 @@ export class MapComponent implements AfterViewInit, OnChanges {
 
     return fetch(`http://127.0.0.1:8000/api/v1/layers/${endpoint}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        case_path: casePath
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ case_path: casePath })
     }).then(res => {
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
@@ -230,12 +221,8 @@ export class MapComponent implements AfterViewInit, OnChanges {
 
     fetch(`http://127.0.0.1:8000/api/v1/layers/${endpoint}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        case_path: casePath
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ case_path: casePath })
     })
       .then(res => {
         if (!res.ok) {
@@ -262,13 +249,6 @@ export class MapComponent implements AfterViewInit, OnChanges {
         }
 
         source.addFeatures(features);
-
-        console.log(
-          'Capa cargada:',
-          layerName,
-          features.map(f => f.getGeometry()?.getType()),
-          features.map(f => f.getProperties())
-        );
 
         this.displayLayer?.changed();
         this.vanosLayer?.changed();
@@ -309,26 +289,41 @@ export class MapComponent implements AfterViewInit, OnChanges {
   }
 
   private assignFallbackSupportIds(features: Feature<Geometry>[]): void {
-    const pointFeatures = features.filter(feature => {
-      const geometry = feature.getGeometry();
-      return geometry?.getType() === 'Point';
-    });
+  const pointFeatures = features.filter(feature => {
+    const geometry = feature.getGeometry();
+    return geometry?.getType() === 'Point';
+  });
 
-    pointFeatures.sort((a, b) => {
-      const ax = a.getGeometry()?.getExtent()[0] ?? 0;
-      const bx = b.getGeometry()?.getExtent()[0] ?? 0;
-      return ax - bx;
-    });
+  pointFeatures.forEach((feature, index) => {
+    const props = feature.getProperties();
 
-    pointFeatures.forEach((feature, index) => {
-      if (!this.getFeatureIdentifier(feature)) {
-        feature.set('generated_id', index + 1);
-      }
+    const order =
+      props['sup_order'] ??
+      props['SUP_ORDER'] ??
+      props['support_order'] ??
+      props['SUPPORT_ORDER'] ??
+      props['support_or'] ??
+      props['SUPPORT_OR'] ??
+      props['generated_id'] ??
+      index + 1;
 
-      feature.set('support_order', index + 1);
-      feature.set('support_total', pointFeatures.length);
-    });
-  }
+    const total =
+      props['sup_total'] ??
+      props['SUP_TOTAL'] ??
+      props['support_total'] ??
+      props['SUPPORT_TOTAL'] ??
+      props['support_to'] ??
+      props['SUPPORT_TO'] ??
+      pointFeatures.length;
+
+    feature.set('support_order', Number(order));
+    feature.set('support_total', Number(total));
+
+    if (!feature.get('generated_id')) {
+      feature.set('generated_id', Number(order));
+    }
+  });
+}
 
   private assignWorstGlobalIdsFromSupports(
     worstFeatures: Feature<Geometry>[],
@@ -565,32 +560,34 @@ export class MapComponent implements AfterViewInit, OnChanges {
   }
 
   private getFeatureIdentifier(feature: Feature<Geometry>): string | number | null {
-    const props = feature.getProperties();
+  const props = feature.getProperties();
 
-    return (
-      props['global_support_id'] ??
-      props['id'] ??
-      props['ID'] ??
-      props['apoyo'] ??
-      props['APOYO'] ??
-      props['numero'] ??
-      props['NUMERO'] ??
-      props['n_apoyo'] ??
-      props['N_APOYO'] ??
-      props['cod_apoyo'] ??
-      props['COD_APOYO'] ??
-      props['support_id'] ??
-      props['SUPPORT_ID'] ??
-      props['support_order'] ??
-      props['SUPPORT_ORDER'] ??
-      props['global_id'] ??
-      props['GLOBAL_ID'] ??
-      props['name'] ??
-      props['Name'] ??
-      props['generated_id'] ??
-      null
-    );
-  }
+  return (
+    props['global_support_id'] ??
+    props['id'] ??
+    props['ID'] ??
+    props['apoyo'] ??
+    props['APOYO'] ??
+    props['numero'] ??
+    props['NUMERO'] ??
+    props['n_apoyo'] ??
+    props['N_APOYO'] ??
+    props['cod_apoyo'] ??
+    props['COD_APOYO'] ??
+    props['support_id'] ??
+    props['SUPPORT_ID'] ??
+    props['support_order'] ??
+    props['SUPPORT_ORDER'] ??
+    props['sup_order'] ??
+    props['SUP_ORDER'] ??
+    props['global_id'] ??
+    props['GLOBAL_ID'] ??
+    props['name'] ??
+    props['Name'] ??
+    props['generated_id'] ??
+    null
+  );
+}
 
   private fitSource(source: VectorSource): void {
     const extent = source.getExtent();
@@ -660,14 +657,29 @@ export class MapComponent implements AfterViewInit, OnChanges {
       this.updateDrawnSupportsTotal();
       this.updateTemporarySupportLine();
 
-      const geojsonGeometry = new GeoJSONFormat().writeGeometryObject(
-        geometry.clone().transform('EPSG:3857', 'EPSG:4326')
-      ) as Record<string, any>;
-
-      this.geometryChange.emit(geojsonGeometry);
+      this.geometryChange.emit(this.getAllDrawnSupportGeometries());
     });
 
     this.map.addInteraction(this.drawInteraction);
+  }
+
+  private getAllDrawnSupportGeometries(): Record<string, any>[] {
+    const source = this.drawLayer?.getSource();
+
+    if (!source) {
+      return [];
+    }
+
+    return source
+      .getFeatures()
+      .filter(feature => feature.getGeometry()?.getType() === 'Point')
+      .map(feature => {
+        const geometry = feature.getGeometry();
+
+        return new GeoJSONFormat().writeGeometryObject(
+          geometry!.clone().transform('EPSG:3857', 'EPSG:4326')
+        ) as Record<string, any>;
+      });
   }
 
   private updateDrawnSupportsTotal(): void {
@@ -710,6 +722,6 @@ export class MapComponent implements AfterViewInit, OnChanges {
     this.drawLayer?.getSource()?.clear();
     this.supportLineLayer?.getSource()?.clear();
     this.drawnSupportCoordinates = [];
-    this.geometryChange.emit(null);
+    this.geometryChange.emit([]);
   }
 }

@@ -27,12 +27,22 @@
       Limpiar apoyos dibujados
     </button>
 
-    <div class="geometry-pill" [class.ok]="drawnGeometry">
-      {{ drawnGeometry ? 'Apoyo dibujado' : 'Apoyo no definido' }}
+    <!-- 🔥 CAMBIO IMPORTANTE -->
+    <div class="geometry-pill" [class.ok]="drawnGeometries.length">
+      {{
+        drawnGeometries.length
+          ? drawnGeometries.length + ' apoyos dibujados'
+          : 'Ningún apoyo dibujado'
+      }}
     </div>
 
-    <button class="btn primary" (click)="saveCase()">
-      Guardar apoyo
+    <!-- 🔥 CAMBIO IMPORTANTE -->
+    <button
+      class="btn primary"
+      (click)="saveCase()"
+      [disabled]="loading || !drawnGeometries.length"
+    >
+      Guardar apoyos
     </button>
   </section>
 
