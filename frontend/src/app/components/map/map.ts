@@ -16,8 +16,11 @@ import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import GeoJSONFormat from 'ol/format/GeoJSON';
 import { fromLonLat } from 'ol/proj';
-import Draw, { createBox } from 'ol/interaction/Draw';
+import Draw from 'ol/interaction/Draw';
 import { DrawMode } from '../../app';
+
+import LineString from 'ol/geom/LineString';
+import Point from 'ol/geom/Point';
 
 import Style from 'ol/style/Style';
 import Fill from 'ol/style/Fill';
@@ -38,18 +41,20 @@ export class MapComponent implements AfterViewInit, OnChanges {
   @Input() drawMode: DrawMode = 'none';
   @Input() clearDrawToken = 0;
 
-  @Output() geometryChange = new EventEmitter<Record<string, any> | null>();
+  @Output() geometryChange = new EventEmitter<Record<string, any>[] | null>();
 
   map: Map | undefined;
 
   vanosLayer: VectorLayer<VectorSource> | undefined;
   displayLayer: VectorLayer<VectorSource> | undefined;
+  supportLineLayer: VectorLayer<VectorSource> | undefined;
   drawLayer: VectorLayer<VectorSource> | undefined;
 
   drawInteraction: Draw | null = null;
 
   private tooltipElement: HTMLElement | null = null;
   private currentTooltipLayer = '';
+  private drawnSupportCoordinates: number[][] = [];
 
   ngAfterViewInit(): void {
     this.tooltipElement = document.getElementById('map-tooltip');
@@ -64,15 +69,23 @@ export class MapComponent implements AfterViewInit, OnChanges {
       style: (feature) => this.getFeatureStyle(feature as Feature<Geometry>, this.selectedLayer)
     });
 
-    this.drawLayer = new VectorLayer({
+    this.supportLineLayer = new VectorLayer({
       source: new VectorSource(),
       style: new Style({
         stroke: new Stroke({
-          color: '#f59e0b',
+          color: '#16a34a',
           width: 3
-        }),
-        fill: new Fill({
-          color: 'rgba(245, 158, 11, 0.18)'
+        })
+      })
+    });
+
+    this.drawLayer = new VectorLayer({
+      source: new VectorSource(),
+      style: new Style({
+        image: new CircleStyle({
+          radius: 7,
+          fill: new Fill({ color: '#16a34a' }),
+          stroke: new Stroke({ color: '#ffffff', width: 2 })
         })
       })
     });
@@ -85,6 +98,7 @@ export class MapComponent implements AfterViewInit, OnChanges {
         }),
         this.vanosLayer,
         this.displayLayer,
+        this.supportLineLayer,
         this.drawLayer
       ],
       view: new View({
@@ -167,15 +181,10 @@ export class MapComponent implements AfterViewInit, OnChanges {
       this.displayLayer?.changed();
 
       const source = this.displayLayer?.getSource();
+
       if (source) {
         this.fitSource(source);
       }
-
-      console.log(
-        'Peores apoyos con IDs globales:',
-        worstFeatures.map(f => f.getProperties())
-      );
-
     } catch (err) {
       console.error('Error cargando peores apoyos con IDs globales:', err);
     }
@@ -186,12 +195,8 @@ export class MapComponent implements AfterViewInit, OnChanges {
 
     return fetch(`http://127.0.0.1:8000/api/v1/layers/${endpoint}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        case_path: casePath
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ case_path: casePath })
     }).then(res => {
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
@@ -216,12 +221,8 @@ export class MapComponent implements AfterViewInit, OnChanges {
 
     fetch(`http://127.0.0.1:8000/api/v1/layers/${endpoint}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        case_path: casePath
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ case_path: casePath })
     })
       .then(res => {
         if (!res.ok) {
@@ -248,13 +249,6 @@ export class MapComponent implements AfterViewInit, OnChanges {
         }
 
         source.addFeatures(features);
-
-        console.log(
-          'Capa cargada:',
-          layerName,
-          features.map(f => f.getGeometry()?.getType()),
-          features.map(f => f.getProperties())
-        );
 
         this.displayLayer?.changed();
         this.vanosLayer?.changed();
@@ -289,50 +283,47 @@ export class MapComponent implements AfterViewInit, OnChanges {
       return;
     }
 
-    if (layerName === 'worst') {
-      this.assignFallbackWorstSupportIds(features);
-      return;
-    }
-
     if (layerName === 'vanos') {
       this.assignFallbackVanoIds(features);
     }
   }
 
   private assignFallbackSupportIds(features: Feature<Geometry>[]): void {
-    const pointFeatures = features.filter(feature => {
-      const geometry = feature.getGeometry();
-      return geometry?.getType() === 'Point';
-    });
+  const pointFeatures = features.filter(feature => {
+    const geometry = feature.getGeometry();
+    return geometry?.getType() === 'Point';
+  });
 
-    pointFeatures.sort((a, b) => {
-      const ax = a.getGeometry()?.getExtent()[0] ?? 0;
-      const bx = b.getGeometry()?.getExtent()[0] ?? 0;
-      return ax - bx;
-    });
+  pointFeatures.forEach((feature, index) => {
+    const props = feature.getProperties();
 
-    pointFeatures.forEach((feature, index) => {
-      if (!this.getFeatureIdentifier(feature)) {
-        feature.set('generated_id', index + 1);
-      }
+    const order =
+      props['sup_order'] ??
+      props['SUP_ORDER'] ??
+      props['support_order'] ??
+      props['SUPPORT_ORDER'] ??
+      props['support_or'] ??
+      props['SUPPORT_OR'] ??
+      props['generated_id'] ??
+      index + 1;
 
-      feature.set('support_order', index + 1);
-      feature.set('support_total', pointFeatures.length);
-    });
-  }
+    const total =
+      props['sup_total'] ??
+      props['SUP_TOTAL'] ??
+      props['support_total'] ??
+      props['SUPPORT_TOTAL'] ??
+      props['support_to'] ??
+      props['SUPPORT_TO'] ??
+      pointFeatures.length;
 
-  private assignFallbackWorstSupportIds(features: Feature<Geometry>[]): void {
-    const pointFeatures = features.filter(feature => {
-      const geometry = feature.getGeometry();
-      return geometry?.getType() === 'Point';
-    });
+    feature.set('support_order', Number(order));
+    feature.set('support_total', Number(total));
 
-    pointFeatures.forEach((feature) => {
-      if (!this.getFeatureIdentifier(feature)) {
-        feature.set('generated_id', 'Sin ID general');
-      }
-    });
-  }
+    if (!feature.get('generated_id')) {
+      feature.set('generated_id', Number(order));
+    }
+  });
+}
 
   private assignWorstGlobalIdsFromSupports(
     worstFeatures: Feature<Geometry>[],
@@ -350,7 +341,6 @@ export class MapComponent implements AfterViewInit, OnChanges {
       const worstExtent = worst.getGeometry()?.getExtent();
 
       if (!worstExtent) {
-        worst.set('global_support_id', 'Sin ID general');
         return;
       }
 
@@ -381,11 +371,15 @@ export class MapComponent implements AfterViewInit, OnChanges {
         }
       });
 
-      if (nearestSupport) {
-        const globalId = this.getFeatureIdentifier(nearestSupport);
-        worst.set('global_support_id', globalId ?? 'Sin ID general');
-      } else {
-        worst.set('global_support_id', 'Sin ID general');
+      if (!nearestSupport) {
+        console.warn('No se encontró apoyo cercano para un peor apoyo.');
+        return;
+      }
+
+      const globalId = this.getFeatureIdentifier(nearestSupport);
+
+      if (globalId !== null) {
+        worst.set('global_support_id', globalId);
       }
     });
   }
@@ -545,6 +539,7 @@ export class MapComponent implements AfterViewInit, OnChanges {
     if (this.currentTooltipLayer === 'apoyos') {
       const order = feature.get('support_order');
       const total = feature.get('support_total');
+
       const endpointText =
         order === 1 ? '<br><strong>Inicio de línea</strong>' :
         order === total ? '<br><strong>Final de línea</strong>' :
@@ -565,32 +560,34 @@ export class MapComponent implements AfterViewInit, OnChanges {
   }
 
   private getFeatureIdentifier(feature: Feature<Geometry>): string | number | null {
-    const props = feature.getProperties();
+  const props = feature.getProperties();
 
-    return (
-      props['global_support_id'] ??
-      props['id'] ??
-      props['ID'] ??
-      props['apoyo'] ??
-      props['APOYO'] ??
-      props['numero'] ??
-      props['NUMERO'] ??
-      props['n_apoyo'] ??
-      props['N_APOYO'] ??
-      props['cod_apoyo'] ??
-      props['COD_APOYO'] ??
-      props['support_id'] ??
-      props['SUPPORT_ID'] ??
-      props['support_order'] ??
-      props['SUPPORT_ORDER'] ??
-      props['global_id'] ??
-      props['GLOBAL_ID'] ??
-      props['name'] ??
-      props['Name'] ??
-      props['generated_id'] ??
-      null
-    );
-  }
+  return (
+    props['global_support_id'] ??
+    props['id'] ??
+    props['ID'] ??
+    props['apoyo'] ??
+    props['APOYO'] ??
+    props['numero'] ??
+    props['NUMERO'] ??
+    props['n_apoyo'] ??
+    props['N_APOYO'] ??
+    props['cod_apoyo'] ??
+    props['COD_APOYO'] ??
+    props['support_id'] ??
+    props['SUPPORT_ID'] ??
+    props['support_order'] ??
+    props['SUPPORT_ORDER'] ??
+    props['sup_order'] ??
+    props['SUP_ORDER'] ??
+    props['global_id'] ??
+    props['GLOBAL_ID'] ??
+    props['name'] ??
+    props['Name'] ??
+    props['generated_id'] ??
+    null
+  );
+}
 
   private fitSource(source: VectorSource): void {
     const extent = source.getExtent();
@@ -633,35 +630,98 @@ export class MapComponent implements AfterViewInit, OnChanges {
 
     this.drawInteraction = new Draw({
       source: drawSource,
-      type: this.drawMode === 'rectangle' ? 'Circle' : 'Polygon',
-      geometryFunction: this.drawMode === 'rectangle' ? createBox() : undefined
-    });
-
-    this.drawInteraction.on('drawstart', () => {
-      drawSource.clear();
+      type: 'Point'
     });
 
     this.drawInteraction.on('drawend', (event) => {
       const geometry = event.feature.getGeometry();
 
-      if (!geometry) {
+      if (!geometry || geometry.getType() !== 'Point') {
         this.geometryChange.emit(null);
         return;
       }
 
-      const geojsonGeometry = new GeoJSONFormat().writeGeometryObject(
-        geometry.clone().transform('EPSG:3857', 'EPSG:4326')
-      ) as Record<string, any>;
+      const pointGeometry = geometry as Point;
+      const coordinate = pointGeometry.getCoordinates();
 
-      this.geometryChange.emit(geojsonGeometry);
-      this.updateDrawInteraction();
+      this.drawnSupportCoordinates.push(coordinate);
+
+      const supportOrder = this.drawnSupportCoordinates.length;
+      const supportId = `AP-${supportOrder}`;
+
+      event.feature.set('id', supportId);
+      event.feature.set('tipo', 'apoyo');
+      event.feature.set('support_order', supportOrder);
+      event.feature.set('support_total', supportOrder);
+
+      this.updateDrawnSupportsTotal();
+      this.updateTemporarySupportLine();
+
+      this.geometryChange.emit(this.getAllDrawnSupportGeometries());
     });
 
     this.map.addInteraction(this.drawInteraction);
   }
 
+  private getAllDrawnSupportGeometries(): Record<string, any>[] {
+    const source = this.drawLayer?.getSource();
+
+    if (!source) {
+      return [];
+    }
+
+    return source
+      .getFeatures()
+      .filter(feature => feature.getGeometry()?.getType() === 'Point')
+      .map(feature => {
+        const geometry = feature.getGeometry();
+
+        return new GeoJSONFormat().writeGeometryObject(
+          geometry!.clone().transform('EPSG:3857', 'EPSG:4326')
+        ) as Record<string, any>;
+      });
+  }
+
+  private updateDrawnSupportsTotal(): void {
+    const source = this.drawLayer?.getSource();
+
+    if (!source) {
+      return;
+    }
+
+    const total = this.drawnSupportCoordinates.length;
+
+    source.getFeatures().forEach(feature => {
+      feature.set('support_total', total);
+    });
+
+    source.changed();
+  }
+
+  private updateTemporarySupportLine(): void {
+    const source = this.supportLineLayer?.getSource();
+
+    if (!source) {
+      return;
+    }
+
+    source.clear();
+
+    if (this.drawnSupportCoordinates.length < 2) {
+      return;
+    }
+
+    const line = new Feature({
+      geometry: new LineString(this.drawnSupportCoordinates)
+    });
+
+    source.addFeature(line);
+  }
+
   private clearDrawGeometry(): void {
     this.drawLayer?.getSource()?.clear();
-    this.geometryChange.emit(null);
+    this.supportLineLayer?.getSource()?.clear();
+    this.drawnSupportCoordinates = [];
+    this.geometryChange.emit([]);
   }
 }

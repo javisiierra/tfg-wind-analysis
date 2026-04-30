@@ -227,6 +227,7 @@ def generate_windninja_input_csv(
         })
 
     out = pd.DataFrame(rows, columns=COLUMNS)
-    output_csv = cfg.out_weather_point_file
-    out.to_csv(output_csv, index=False)
+    output_csv = Path(output_csv)
+    output_csv.parent.mkdir(parents=True, exist_ok=True)
+    out.to_csv(output_csv, index=False, encoding="utf-8", lineterminator="\n")
     return out

@@ -9,7 +9,7 @@
   <aside class="app-sidebar">
     <app-sidebar
       [casePath]="casePath"
-      [drawnGeometry]="drawnGeometry"
+      [drawnGeometries]="drawnGeometries"
       (layerSelected)="selectedLayer = $event"
       (drawModeChange)="onDrawModeChange($event)"
       (clearDrawing)="onClearDrawing()"
@@ -44,8 +44,8 @@
     </div>
 
     <div class="panel-section">
-      <span class="panel-label">Geometría</span>
-      <strong>{{ drawnGeometry ? 'Definida' : 'No definida' }}</strong>
+      <span class="panel-label">Apoyos dibujados</span>
+      <strong>{{ drawnGeometries.length ? drawnGeometries.length + ' apoyos' : 'No definido' }}</strong>
     </div>
 
     <details *ngIf="pipelineStatus.result" class="technical-details">

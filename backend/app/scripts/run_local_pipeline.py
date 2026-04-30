@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 import shutil
 from app.core.config import load_config_toml
@@ -268,8 +269,11 @@ def run_wind_rose_stage(cfg):
         "cfg_csv_path": cfg.wr_csv,
     }
 
+def safe_case_name(name: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_]+", "_", name).strip("_")
 
-def run_rename_stage(cfg):
+
+def run_rename_stage(cfg, apply: bool = True):
     cases_csv = Path(cfg.out_weather_point_file)
     out_dir = Path(cfg.out_wn)
     dest_dir = Path(cfg.out_wn_ren)
@@ -281,7 +285,10 @@ def run_rename_stage(cfg):
     summary_txt = report_dir / "rename_summary.txt"
     plan_csv = report_dir / "rename_plan.csv"
 
-    apply_flag = getattr(cfg, "apply_rename", False)
+    apply_flag = apply
+
+    case_name = safe_case_name(Path(cfg.general_path).name)
+    prefix = f"MDT_WN_{case_name}_point"
 
     plan_df, stats, diag_df = run_rename(
         cases_csv=cases_csv,
@@ -290,7 +297,7 @@ def run_rename_stage(cfg):
         diag_csv=diag_csv,
         summary_txt=summary_txt,
         plan_csv=plan_csv,
-        prefix="MDT_WN_Corredoria_Grado_point",
+        prefix=prefix,
         recursive=False,
         apply=apply_flag,
     )

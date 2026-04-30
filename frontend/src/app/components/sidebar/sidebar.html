@@ -1,10 +1,10 @@
 <div class="sidebar">
   <section class="sidebar-card">
     <div class="section-header">
-      <span class="section-icon">📁</span>
+      <span class="section-icon">📍</span>
       <div>
-        <h3>Crear caso</h3>
-        <p>Define el dominio de simulación</p>
+        <h3>Dibujar apoyos</h3>
+        <p>Añade apoyos manualmente sobre el mapa</p>
       </div>
     </div>
 
@@ -15,26 +15,34 @@
       placeholder="Ej: caso_corredoria_01"
     />
 
-    <div class="button-grid">
-      <button class="btn secondary" (click)="startRectangleDraw()">
-        Dibujar rectángulo
-      </button>
-
-      <button class="btn secondary" (click)="startPolygonDraw()">
-        Dibujar polígono
-      </button>
-    </div>
-
-    <button class="btn ghost" (click)="clearDrawnGeometry()">
-      Limpiar dibujo
+    <button class="btn secondary" (click)="startSupportDraw()">
+      Dibujar apoyo
     </button>
 
-    <div class="geometry-pill" [class.ok]="drawnGeometry">
-      {{ drawnGeometry ? 'Dominio dibujado' : 'Dominio no definido' }}
+    <button class="btn ghost" (click)="finishSupportDraw()">
+      Finalizar dibujo
+    </button>
+
+    <button class="btn ghost" (click)="clearDrawnGeometry()">
+      Limpiar apoyos dibujados
+    </button>
+
+    <!-- 🔥 CAMBIO IMPORTANTE -->
+    <div class="geometry-pill" [class.ok]="drawnGeometries.length">
+      {{
+        drawnGeometries.length
+          ? drawnGeometries.length + ' apoyos dibujados'
+          : 'Ningún apoyo dibujado'
+      }}
     </div>
 
-    <button class="btn primary" (click)="saveCase()">
-      Guardar caso
+    <!-- 🔥 CAMBIO IMPORTANTE -->
+    <button
+      class="btn primary"
+      (click)="saveCase()"
+      [disabled]="loading || !drawnGeometries.length"
+    >
+      Guardar apoyos
     </button>
   </section>
 
@@ -51,6 +59,16 @@
       <div class="status-item" [class.ok]="hasDomain">
         <span>Dominio</span>
         <strong>{{ hasDomain ? 'OK' : 'Pendiente' }}</strong>
+      </div>
+
+      <div class="status-item" [class.ok]="hasApoyos">
+        <span>Apoyos</span>
+        <strong>{{ hasApoyos ? 'OK' : 'Pendiente' }}</strong>
+      </div>
+
+      <div class="status-item" [class.ok]="hasVanos">
+        <span>Vanos</span>
+        <strong>{{ hasVanos ? 'OK' : 'Pendiente' }}</strong>
       </div>
 
       <div class="status-item" [class.ok]="hasDem">
@@ -82,6 +100,10 @@
         <p>Pipeline de preparación y simulación</p>
       </div>
     </div>
+
+    <button class="btn secondary" (click)="runGenerateDomainFromSupports()" [disabled]="!casePath || !hasApoyos">
+      Generar dominio desde apoyos
+    </button>
 
     <button class="btn secondary" (click)="runGenerateDem()" [disabled]="!casePath">
       Generar DEM
