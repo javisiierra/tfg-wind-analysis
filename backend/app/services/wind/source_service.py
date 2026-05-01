@@ -15,6 +15,8 @@ import requests
 import xarray as xr
 from pyproj import CRS, Transformer
 
+from app.services.wind.utils import uv_to_ws_wd
+
 
 # -----------------------
 # Utilidades de coordenadas
@@ -108,17 +110,6 @@ def fetch_power_hourly(lat: float, lon: float, start: date, end: date) -> pd.Dat
 # -----------------------
 # ERA5 (CDS API): U10/V10 -> WS/WD
 # -----------------------
-
-def uv_to_ws_wd(u: np.ndarray, v: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Convierte componentes (u,v) a:
-      - WS = sqrt(u^2 + v^2)
-      - WD meteorológica (dirección "de procedencia"): atan2(-u, -v)
-    """
-    ws = np.sqrt(u * u + v * v)
-    wd = (np.degrees(np.arctan2(-u, -v)) + 360.0) % 360.0
-    return ws, wd
-
 
 def month_range(start: date, end: date) -> List[Tuple[int, int]]:
     months = []
