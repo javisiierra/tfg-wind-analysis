@@ -70,6 +70,11 @@ def get_bbox_from_domain(domain_geojson: dict[str, Any]) -> list[float]:
     return [min(lons), min(lats), max(lons), max(lats)]
 
 
+def era5_cache_target_path(bbox: list[float], year: int) -> str:
+    min_lon, min_lat, max_lon, max_lat = bbox
+    return os.path.join(tempfile.gettempdir(), f"era5_{year}_{min_lon}_{min_lat}_{max_lon}_{max_lat}.nc")
+
+
 def download_era5_for_bbox_year(bbox: list[float], year: int) -> str:
     """Download ERA5 hourly u10/v10 for a bbox and year and return NetCDF path.
 
@@ -87,7 +92,7 @@ def download_era5_for_bbox_year(bbox: list[float], year: int) -> str:
     except ImportError as exc:
         raise RuntimeError("cdsapi is required to download ERA5 data") from exc
 
-    target = os.path.join(tempfile.gettempdir(), f"era5_{year}_{min_lon}_{min_lat}_{max_lon}_{max_lat}.nc")
+    target = era5_cache_target_path(bbox, year)
     days = [f"{d:02d}" for d in range(1, 32)]
     times = [f"{h:02d}:00" for h in range(24)]
 

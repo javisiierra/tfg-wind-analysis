@@ -1,13 +1,15 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, model_validator
-from typing import Dict, List, Optional, Tuple
-import hashlib
-import random
+from typing import Any, Dict, List, Literal, Optional, Tuple
+import logging
 
 from app.services.dashboard.weather_dashboard_service import DashboardDataError, WeatherDashboardService
+from app.services.dashboard.job_store import DashboardJobStore
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 service = WeatherDashboardService()
+job_store = DashboardJobStore()
+logger = logging.getLogger(__name__)
 
 
 class MeteoRequest(BaseModel):
@@ -16,6 +18,7 @@ class MeteoRequest(BaseModel):
     geometry: Optional[Dict] = None
     bbox: Optional[Tuple[float, float, float, float]] = None
     case_path: Optional[str] = None
+    source: Optional[str] = None
 
     @model_validator(mode="after")
     def validate_domain(self):
@@ -80,20 +83,54 @@ class WindRoseData(BaseModel):
     status: str
 
 
-def build_domain_seed(request: MeteoRequest) -> int:
-    domain_key = (
-        request.domain_id
-        or request.case_path
-        or str(request.bbox)
-        or str(request.geometry)
-    )
-    raw = f"{request.year}|{domain_key}".encode("utf-8")
-    return int(hashlib.sha256(raw).hexdigest()[:16], 16)
+class StartJobResponse(BaseModel):
+    job_id: str
+    status: Literal["queued"]
+
+
+class DashboardJobStatus(BaseModel):
+    job_id: str
+    status: Literal["queued", "running", "finished", "failed"]
+    progress: int
+    message: str
+    result: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+
+
+def _run_dashboard_job(job_id: str, request: MeteoRequest) -> None:
+    try:
+        job_store.update(job_id, status="running", progress=15, message="Resolviendo dominio/bbox...")
+        result = service.get_dashboard_bundle(
+            year=request.year,
+            domain=request,
+            progress_cb=lambda progress, message: job_store.update(job_id, status="running", progress=progress, message=message),
+        )
+        job_store.update(job_id, status="finished", progress=100, message="Análisis completado", result=result, error=None)
+    except DashboardDataError as exc:
+        logger.exception("Dashboard async job failed", extra={"job_id": job_id})
+        job_store.update(job_id, status="failed", progress=100, message="No se pudo completar el análisis.", error=str(exc), result=None)
+    except Exception as exc:
+        logger.exception("Unexpected dashboard async job failure", extra={"job_id": job_id})
+        job_store.update(job_id, status="failed", progress=100, message="Fallo inesperado durante el análisis.", error="Error interno al procesar datos ERA5.", result=None)
+
+
+@router.post("/meteo-summary/start", response_model=StartJobResponse)
+async def start_meteo_summary_job(request: MeteoRequest):
+    job_id = job_store.create(message="Job creado", progress=5)
+    job_store.start_background(job_id, _run_dashboard_job, request)
+    return StartJobResponse(job_id=job_id, status="queued")
+
+
+@router.get("/meteo-summary/status/{job_id}", response_model=DashboardJobStatus)
+async def get_meteo_summary_job_status(job_id: str):
+    job = job_store.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job_id no encontrado")
+    return DashboardJobStatus(**job)
 
 
 @router.post("/meteo-summary", response_model=MeteoSummary)
 async def get_meteo_summary(request: MeteoRequest):
-    """Obtiene el resumen meteorológico para un año específico."""
     try:
         return MeteoSummary(**service.get_meteo_summary(request.year, request))
     except DashboardDataError as exc:
@@ -104,7 +141,6 @@ async def get_meteo_summary(request: MeteoRequest):
 
 @router.post("/wind-timeseries", response_model=List[WindTimeseries])
 async def get_wind_timeseries(request: MeteoRequest):
-    """Obtiene las series temporales mensuales de viento."""
     try:
         result = service.get_wind_timeseries(request.year, request)
         return [WindTimeseries(**item, source=result["source"], request_id=result["request_id"], domain_bbox=result["domain_bbox"], time_range=result["time_range"], crs=result["crs"], status=result["status"]) for item in result["items"]]
@@ -116,7 +152,6 @@ async def get_wind_timeseries(request: MeteoRequest):
 
 @router.post("/wind-rose", response_model=List[WindRoseData])
 async def get_wind_rose(request: MeteoRequest):
-    """Obtiene los datos de rosa de vientos (16 direcciones)."""
     try:
         result = service.get_wind_rose(request.year, request)
         return [WindRoseData(**item, source=result["source"], request_id=result["request_id"], domain_bbox=result["domain_bbox"], time_range=result["time_range"], crs=result["crs"], status=result["status"]) for item in result["items"]]

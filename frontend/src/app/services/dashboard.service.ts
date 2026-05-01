@@ -33,6 +33,22 @@ export interface MeteoRequestPayload {
   geometry?: Record<string, unknown>;
   bbox?: [number, number, number, number];
   case_path?: string;
+  source?: string;
+}
+
+export interface DashboardAsyncStartResponse { job_id: string; status: 'queued'; }
+
+export interface DashboardAsyncStatusResponse {
+  job_id: string;
+  status: 'queued' | 'running' | 'finished' | 'failed';
+  progress: number;
+  message: string;
+  result: {
+    meteo_summary: MeteoSummary;
+    wind_timeseries: WindTimeseries[];
+    wind_rose: WindRoseData[];
+  } | null;
+  error: string | null;
 }
 
 export interface CaseStatusResponse {
@@ -45,54 +61,27 @@ export interface CaseStatusResponse {
   ready_for_windninja: boolean;
 }
 
-@Injectable({
-  providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class DashboardService {
   private readonly apiBaseUrl = environment.apiBaseUrl;
-
   constructor(private http: HttpClient) {}
 
-  /**
-   * Obtiene el resumen meteorológico para un año específico
-   * @param year Año para el cual obtener el resumen
-   * @returns Observable con los datos del resumen meteorológico
-   */
+  startMeteoSummary(payload: MeteoRequestPayload): Observable<DashboardAsyncStartResponse> {
+    return this.http.post<DashboardAsyncStartResponse>(`${this.apiBaseUrl}/dashboard/meteo-summary/start`, payload);
+  }
+  getMeteoSummaryStatus(jobId: string): Observable<DashboardAsyncStatusResponse> {
+    return this.http.get<DashboardAsyncStatusResponse>(`${this.apiBaseUrl}/dashboard/meteo-summary/status/${jobId}`);
+  }
   getMeteoSummary(payload: MeteoRequestPayload): Observable<MeteoSummary> {
-    return this.http.post<MeteoSummary>(
-      `${this.apiBaseUrl}/dashboard/meteo-summary`,
-      payload
-    );
+    return this.http.post<MeteoSummary>(`${this.apiBaseUrl}/dashboard/meteo-summary`, payload);
   }
-
-  /**
-   * Obtiene las series temporales de viento por mes
-   * @param year Año para el cual obtener los datos
-   * @returns Observable con las series temporales de viento
-   */
   getWindTimeseries(payload: MeteoRequestPayload): Observable<WindTimeseries[]> {
-    return this.http.post<WindTimeseries[]>(
-      `${this.apiBaseUrl}/dashboard/wind-timeseries`,
-      payload
-    );
+    return this.http.post<WindTimeseries[]>(`${this.apiBaseUrl}/dashboard/wind-timeseries`, payload);
   }
-
-  /**
-   * Obtiene los datos de rosa de vientos
-   * @param year Año para el cual obtener los datos
-   * @returns Observable con los datos de rosa de vientos
-   */
   getWindRose(payload: MeteoRequestPayload): Observable<WindRoseData[]> {
-    return this.http.post<WindRoseData[]>(
-      `${this.apiBaseUrl}/dashboard/wind-rose`,
-      payload
-    );
+    return this.http.post<WindRoseData[]>(`${this.apiBaseUrl}/dashboard/wind-rose`, payload);
   }
-
   getCaseStatus(casePath: string): Observable<CaseStatusResponse> {
-    return this.http.post<CaseStatusResponse>(
-      `${this.apiBaseUrl}/case/status`,
-      { case_path: casePath }
-    );
+    return this.http.post<CaseStatusResponse>(`${this.apiBaseUrl}/case/status`, { case_path: casePath });
   }
 }

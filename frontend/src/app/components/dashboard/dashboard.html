@@ -40,6 +40,14 @@
     <div *ngIf="error" class="error-message">
       {{ error }}
     </div>
+
+    <div *ngIf="isLoading" class="progress-panel">
+      <p>{{ progressMessage || 'Preparando análisis...' }}</p>
+      <div class="progress-bar">
+        <div class="progress-fill" [style.width.%]="progress"></div>
+      </div>
+      <small>{{ progress }}%</small>
+    </div>
   </section>
 
   <div *ngIf="meteoSummary" class="dashboard-content">
