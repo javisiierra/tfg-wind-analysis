@@ -28,8 +28,28 @@
       <input id="bbox" type="text" [(ngModel)]="bboxText" placeholder="-4.5,40.1,-3.8,40.7" />
     </div>
     <div class="control-group" *ngIf="selectedDomainType === 'case_path'">
-      <label for="case-path">Case path:</label>
-      <input id="case-path" type="text" [(ngModel)]="casePath" placeholder="/data/cases/madrid.case" />
+      <label for="case-path-selected">Caso activo (case_path):</label>
+      <input
+        id="case-path-selected"
+        type="text"
+        [value]="casePath || 'Sin caso activo seleccionado en la app'"
+        disabled
+      />
+    </div>
+    <div class="control-group" *ngIf="selectedDomainType === 'case_path'">
+      <label>
+        <input type="checkbox" [(ngModel)]="useManualCasePath" />
+        Usar ruta manual (compatibilidad temporal)
+      </label>
+    </div>
+    <div class="control-group" *ngIf="selectedDomainType === 'case_path' && useManualCasePath">
+      <label for="case-path-manual">Case path manual:</label>
+      <input
+        id="case-path-manual"
+        type="text"
+        [(ngModel)]="manualCasePath"
+        placeholder="/data/cases/madrid.case"
+      />
     </div>
 
     <button

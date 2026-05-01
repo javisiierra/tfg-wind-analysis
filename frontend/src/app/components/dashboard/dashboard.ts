@@ -1,7 +1,10 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Subject } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
 import { DashboardService, MeteoRequestPayload } from '../../services/dashboard.service';
+import { MapContextService } from '../../services/map-context.service';
 
 interface MeteoSummary {
   year: number;
@@ -34,13 +37,15 @@ interface WindRoseData {
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.css'
 })
-export class DashboardComponent implements OnInit {
+export class DashboardComponent implements OnInit, OnDestroy {
   years: number[] = [];
   selectedYear: number | null = null;
   selectedDomainType: 'domain_id' | 'bbox' | 'case_path' = 'domain_id';
   domainId = '';
   bboxText = '';
   casePath = '';
+  manualCasePath = '';
+  useManualCasePath = false;
   isLoading = false;
   error: string | null = null;
 
@@ -50,13 +55,26 @@ export class DashboardComponent implements OnInit {
 
   chartContainerId = 'monthly-wind-chart';
   roseContainerId = 'wind-rose-chart';
+  private destroy$ = new Subject<void>();
 
-  constructor(private dashboardService: DashboardService) {
+  constructor(
+    private dashboardService: DashboardService,
+    private mapContextService: MapContextService
+  ) {
     this.initializeYears();
   }
 
   ngOnInit(): void {
-    // Chart libraries will be loaded dynamically when needed
+    this.mapContextService.casePath$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(path => {
+        this.casePath = path ?? '';
+      });
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   private initializeYears(): void {
@@ -75,21 +93,58 @@ export class DashboardComponent implements OnInit {
       this.error = 'Por favor selecciona un año';
       return;
     }
-    const domainRequest = this.buildDomainRequest();
-    if (!domainRequest) {
-      return;
-    }
-
     this.isLoading = true;
     this.error = null;
 
-    this.dashboardService.getMeteoSummary(domainRequest).subscribe({
-      next: (summary) => {
-        this.meteoSummary = summary;
-        this.loadWindTimeseries(domainRequest);
+    this.validateCasePathForAnalysis((validatedPath) => {
+      const domainRequest = this.buildDomainRequest(validatedPath);
+      if (!domainRequest) {
+        this.isLoading = false;
+        return;
+      }
+
+      this.dashboardService.getMeteoSummary(domainRequest).subscribe({
+        next: (summary) => {
+          this.meteoSummary = summary;
+          this.loadWindTimeseries(domainRequest);
+        },
+        error: (err) => {
+          this.error = `Error al obtener resumen meteorológico: ${err.message}`;
+          this.isLoading = false;
+        }
+      });
+    });
+  }
+
+  get selectedCasePathForRequest(): string {
+    return this.useManualCasePath ? this.manualCasePath.trim() : this.casePath.trim();
+  }
+
+  private validateCasePathForAnalysis(onSuccess: (validatedCasePath: string | null) => void): void {
+    if (this.selectedDomainType !== 'case_path') {
+      onSuccess(null);
+      return;
+    }
+
+    const selectedPath = this.selectedCasePathForRequest;
+    if (!selectedPath) {
+      this.error = 'Debes seleccionar un caso activo o pegar un case_path manual.';
+      this.isLoading = false;
+      return;
+    }
+
+    this.dashboardService.getCaseStatus(selectedPath).subscribe({
+      next: (status) => {
+        if (!status.has_domain) {
+          this.error = 'El caso seleccionado no tiene dominio.*. Genera el dominio antes de lanzar el análisis.';
+          this.isLoading = false;
+          return;
+        }
+        onSuccess(selectedPath);
       },
       error: (err) => {
-        this.error = `Error al obtener resumen meteorológico: ${err.message}`;
+        const detail = err?.error?.detail ?? err?.message ?? 'No se pudo validar el caso.';
+        this.error = `No se pudo validar el case_path seleccionado: ${detail}`;
         this.isLoading = false;
       }
     });
@@ -185,7 +240,7 @@ export class DashboardComponent implements OnInit {
     return 'viability-low';
   }
 
-  private buildDomainRequest(): MeteoRequestPayload | null {
+  private buildDomainRequest(validatedCasePath: string | null): MeteoRequestPayload | null {
     if (!this.selectedYear) {
       return null;
     }
@@ -199,11 +254,11 @@ export class DashboardComponent implements OnInit {
     }
 
     if (this.selectedDomainType === 'case_path') {
-      if (!this.casePath.trim()) {
-        this.error = 'Debes informar un case_path';
+      if (!validatedCasePath) {
+        this.error = 'Debes informar un case_path válido';
         return null;
       }
-      return { ...baseRequest, case_path: this.casePath.trim() };
+      return { ...baseRequest, case_path: validatedCasePath };
     }
 
     const values = this.bboxText.split(',').map((value) => Number(value.trim()));
