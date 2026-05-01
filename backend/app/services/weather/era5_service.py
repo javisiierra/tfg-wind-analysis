@@ -105,6 +105,41 @@ def analyze_hourly_wind_dataset(dataset_path: str) -> pd.DataFrame:
     return df.replace([np.inf, -np.inf], np.nan).dropna().sort_index()
 
 
+def load_era5_dataset(path: str) -> pd.DataFrame:
+    """Load an ERA5 NetCDF file and convert it to hourly wind DataFrame."""
+    return analyze_hourly_wind_dataset(path)
+
+
+def analyze_wind(df: pd.DataFrame) -> dict[str, Any]:
+    """Analyze hourly wind series and return canonical metrics for the weather endpoint.
+
+    Returns:
+      - mean_wind_speed
+      - max_wind_speed
+      - dominant_direction
+      - monthly_stats
+      - best_month
+      - viability
+    """
+    if df.empty:
+        raise ValueError("Input DataFrame is empty")
+
+    ws = df["WS10M"]
+    wd = df["WD10M"]
+    monthly_stats = _build_monthly_stats(df)
+
+    month_avg = ws.groupby(df.index.month).mean()
+    dominant_mode = wd.mode()
+    return {
+        "mean_wind_speed": float(ws.mean()),
+        "max_wind_speed": float(ws.max()),
+        "dominant_direction": float(dominant_mode.iloc[0]) if not dominant_mode.empty else 0.0,
+        "monthly_stats": monthly_stats,
+        "best_month": int(month_avg.idxmax()),
+        "viability": calculate_viability(float(ws.mean())),
+    }
+
+
 def calculate_monthly_summary(df: pd.DataFrame) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Calculate output dictionaries compatible with MeteoSummary and WindTimeseries.
 
@@ -115,40 +150,41 @@ def calculate_monthly_summary(df: pd.DataFrame) -> tuple[dict[str, Any], list[di
     if df.empty:
         raise ValueError("Input DataFrame is empty")
 
+    analysis = analyze_wind(df)
     ws = df["WS10M"]
-    wd = df["WD10M"]
     year = int(df.index[0].year)
-
-    month_avg = ws.groupby(df.index.month).mean()
     meteo_summary = {
         "year": year,
-        "avg_velocity": float(ws.mean()),
-        "max_velocity": float(ws.max()),
-        "dominant_direction": float(wd.mode().iloc[0]) if not wd.mode().empty else 0.0,
-        "windiest_month": int(month_avg.idxmax()),
-        "viability_index": calculate_viability(float(ws.mean())),
+        "avg_velocity": analysis["mean_wind_speed"],
+        "max_velocity": analysis["max_wind_speed"],
+        "dominant_direction": analysis["dominant_direction"],
+        "windiest_month": analysis["best_month"],
+        "viability_index": analysis["viability"],
         "data_points": int(len(df)),
     }
+    return meteo_summary, analysis["monthly_stats"]
 
+
+def _build_monthly_stats(df: pd.DataFrame) -> list[dict[str, Any]]:
+    """Build monthly statistics helper structure."""
     bins = [0, 2, 4, 6, 8, 10, np.inf]
     labels = ["0-2", "2-4", "4-6", "6-8", "8-10", "10+"]
-    timeseries: list[dict[str, Any]] = []
+    monthly_stats: list[dict[str, Any]] = []
     for month in range(1, 13):
         monthly = df[df.index.month == month]
         if monthly.empty:
-            timeseries.append({"month": month, "avg_velocity": 0.0, "max_velocity": 0.0, "min_velocity": 0.0, "frequency": {k: 0.0 for k in labels}})
+            monthly_stats.append({"month": month, "avg_velocity": 0.0, "max_velocity": 0.0, "min_velocity": 0.0, "frequency": {k: 0.0 for k in labels}})
             continue
         grouped = pd.cut(monthly["WS10M"], bins=bins, labels=labels, right=False)
         freq = grouped.value_counts(normalize=True).reindex(labels, fill_value=0.0)
-        timeseries.append({
+        monthly_stats.append({
             "month": month,
             "avg_velocity": float(monthly["WS10M"].mean()),
             "max_velocity": float(monthly["WS10M"].max()),
             "min_velocity": float(monthly["WS10M"].min()),
             "frequency": {k: float(v) for k, v in freq.items()},
         })
-
-    return meteo_summary, timeseries
+    return monthly_stats
 
 
 def calculate_wind_rose(df: pd.DataFrame) -> list[dict[str, Any]]:
