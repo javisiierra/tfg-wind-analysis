@@ -9,9 +9,8 @@ from uuid import uuid4
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from shapely.geometry import shape
+from shapely.geometry import box, shape
 
-from app.services.case_import.import_folder_service import import_folder_from_input_path
 from app.services.dashboard.era5_service import Era5Service
 
 
@@ -64,10 +63,35 @@ class WeatherDashboardService:
         return None
 
     def _generate_case_domain(self, base: Path) -> None:
+        trace_candidates = [base / "SHP" / "traza.shp", base / f"{base.name}.shp"]
+        trace_path = next((candidate for candidate in trace_candidates if candidate.exists()), None)
+        if trace_path is None:
+            return
+
         try:
-            import_folder_from_input_path(str(base))
+            trace_gdf = gpd.read_file(trace_path)
         except Exception:
             return
+
+        if trace_gdf.empty or not trace_gdf.geometry.notna().any():
+            return
+
+        if trace_gdf.crs is None:
+            trace_gdf = trace_gdf.set_crs(epsg=25830)
+
+        minx, miny, maxx, maxy = trace_gdf.total_bounds
+        if minx >= maxx or miny >= maxy:
+            return
+
+        buffer_value = max(100.0, max((maxx - minx), (maxy - miny)) * 0.05)
+        domain_polygon = box(minx - buffer_value, miny - buffer_value, maxx + buffer_value, maxy + buffer_value)
+        domain_gdf = gpd.GeoDataFrame({"tipo": ["dominio"]}, geometry=[domain_polygon], crs=trace_gdf.crs)
+
+        shp_path = base / "SHP" / "dominio.shp"
+        geojson_path = base / "SHP" / "dominio.geojson"
+        shp_path.parent.mkdir(parents=True, exist_ok=True)
+        domain_gdf.to_file(shp_path, driver="ESRI Shapefile", encoding="UTF-8")
+        domain_gdf.to_file(geojson_path, driver="GeoJSON", encoding="UTF-8")
 
     def _resolve_domain_descriptor(self, domain: Any) -> dict[str, Any]:
         descriptor = domain.model_dump() if hasattr(domain, "model_dump") else dict(domain or {})
