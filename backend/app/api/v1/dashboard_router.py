@@ -4,7 +4,10 @@ from typing import Dict, List, Optional, Tuple
 import hashlib
 import random
 
+from app.services.dashboard.weather_dashboard_service import WeatherDashboardService
+
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
+service = WeatherDashboardService()
 
 
 class MeteoRequest(BaseModel):
@@ -74,74 +77,24 @@ def build_domain_seed(request: MeteoRequest) -> int:
 async def get_meteo_summary(request: MeteoRequest):
     """Obtiene el resumen meteorológico para un año específico."""
     try:
-        seed = build_domain_seed(request)
-        rng = random.Random(seed)
+        return MeteoSummary(**service.get_meteo_summary(request.year))
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-
-    return MeteoSummary(
-        year=request.year,
-        avg_velocity=round(rng.uniform(3.8, 8.2), 2),
-        max_velocity=round(rng.uniform(12.5, 26.0), 2),
-        dominant_direction=round(rng.uniform(0, 359), 1),
-        windiest_month=rng.randint(1, 12),
-        viability_index=round(rng.uniform(0.25, 0.88), 2),
-        data_points=8760
-    )
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/wind-timeseries", response_model=List[WindTimeseries])
 async def get_wind_timeseries(request: MeteoRequest):
     """Obtiene las series temporales mensuales de viento."""
-    seed = build_domain_seed(request)
-    rng = random.Random(seed + 101)
-
-    months_data = []
-    for month in range(1, 13):
-        avg_velocity = round(rng.uniform(3.0, 8.5) + month * 0.05, 2)
-        max_velocity = round(avg_velocity + rng.uniform(5.0, 12.0), 2)
-        min_velocity = round(max(0.0, avg_velocity - rng.uniform(2.0, 3.5)), 2)
-
-        bins = [rng.uniform(0.03, 0.30) for _ in range(6)]
-        total = sum(bins)
-        normalized_bins = [round(value / total, 4) for value in bins]
-        months_data.append(
-            WindTimeseries(
-                month=month,
-                avg_velocity=avg_velocity,
-                max_velocity=max_velocity,
-                min_velocity=min_velocity,
-                frequency={
-                    "0-2": normalized_bins[0],
-                    "2-4": normalized_bins[1],
-                    "4-6": normalized_bins[2],
-                    "6-8": normalized_bins[3],
-                    "8-10": normalized_bins[4],
-                    "10+": normalized_bins[5]
-                }
-            )
-        )
-    return months_data
+    try:
+        return [WindTimeseries(**item) for item in service.get_wind_timeseries(request.year)]
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/wind-rose", response_model=List[WindRoseData])
 async def get_wind_rose(request: MeteoRequest):
     """Obtiene los datos de rosa de vientos (16 direcciones)."""
-    seed = build_domain_seed(request)
-    rng = random.Random(seed + 202)
-    directions = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
-
-    raw_freq = [rng.uniform(0.02, 0.12) for _ in directions]
-    total = sum(raw_freq)
-    wind_rose = []
-    for idx, direction in enumerate(directions):
-        min_vel = round(rng.uniform(0.2, 1.4), 2)
-        max_vel = round(min_vel + rng.uniform(2.0, 5.5), 2)
-        wind_rose.append(
-            WindRoseData(
-                direction=direction,
-                frequency=round(raw_freq[idx] / total, 4),
-                velocity_range={"min": min_vel, "max": max_vel}
-            )
-        )
-    return wind_rose
+    try:
+        return [WindRoseData(**item) for item in service.get_wind_rose(request.year)]
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
