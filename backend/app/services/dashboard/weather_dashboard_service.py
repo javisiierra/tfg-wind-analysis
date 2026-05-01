@@ -190,7 +190,13 @@ class WeatherDashboardService:
                 ) from exc
             if ".cdsapirc" in lowered or "missing/incomplete configuration file" in lowered:
                 raise DashboardDataError(
-                    "No se pudo descargar o leer ERA5: faltan credenciales CDS (~/.cdsapirc).",
+                    "No se pudieron descargar datos ERA5 porque faltan credenciales de Copernicus CDS API.",
+                    "ERA5_DOWNLOAD_FAILED",
+                    500,
+                ) from exc
+            if "copernicus cds api" in lowered or "cdsapi_url" in lowered or "cdsapi_key" in lowered:
+                raise DashboardDataError(
+                    "No se pudieron descargar datos ERA5 porque faltan credenciales de Copernicus CDS API.",
                     "ERA5_DOWNLOAD_FAILED",
                     500,
                 ) from exc
