@@ -1,7 +1,7 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Subject, interval } from 'rxjs';
+import { Subject, Subscription, interval } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { DashboardAsyncStatusResponse, DashboardService, MeteoRequestPayload } from '../../services/dashboard.service';
 import { MapContextService } from '../../services/map-context.service';
@@ -45,7 +45,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
   error: string | null = null;
   progress = 0;
   progressMessage = "";
+  jobStatus: 'queued' | 'running' | 'finished' | 'failed' = 'queued';
+  result: DashboardAsyncStatusResponse['result'] = null;
   private activeJobId: string | null = null;
+  private pollingSubscription: Subscription | null = null;
 
   meteoSummary: MeteoSummary | null = null;
   windTimeseries: WindTimeseries[] = [];
@@ -75,6 +78,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+    this.stopPolling();
   }
 
   private initializeYears(): void {
@@ -119,6 +123,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
       const requestPayload: MeteoRequestPayload = { year: this.selectedYear!, case_path: validatedPath, source: "ERA5" };
       this.progress = 5;
       this.progressMessage = "Preparando análisis...";
+      this.jobStatus = "queued";
+      this.result = null;
       this.dashboardService.startMeteoSummary(requestPayload).subscribe({
         next: (response) => {
           this.activeJobId = response.job_id;
@@ -158,34 +164,50 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private startPollingJobStatus(jobId: string): void {
-    interval(2500).pipe(takeUntil(this.destroy$)).subscribe(() => {
+    this.stopPolling();
+    this.pollingSubscription = interval(2500).pipe(takeUntil(this.destroy$)).subscribe(() => {
       if (!this.activeJobId) return;
       this.dashboardService.getMeteoSummaryStatus(jobId).subscribe({
-        next: (status) => this.handleJobStatus(status),
+        next: (response) => this.handleJobStatus(response),
         error: () => {
           this.error = "No se pudo consultar el estado del análisis.";
           this.isLoading = false;
           this.activeJobId = null;
+          this.stopPolling();
         }
       });
     });
     this.dashboardService.getMeteoSummaryStatus(jobId).subscribe((status) => this.handleJobStatus(status));
   }
 
-  private handleJobStatus(status: DashboardAsyncStatusResponse): void {
-    this.progress = status.progress ?? 0;
-    this.progressMessage = status.message || "Procesando...";
-    if (status.status === "finished" && status.result) {
+  private stopPolling(): void {
+    this.pollingSubscription?.unsubscribe();
+    this.pollingSubscription = null;
+  }
+
+  private handleJobStatus(response: DashboardAsyncStatusResponse): void {
+    console.log('JOB STATUS RESPONSE', response);
+    this.jobStatus = response.status;
+    this.progress = response.progress ?? 0;
+    this.progressMessage = response.message ?? '';
+    this.result = response.result ?? null;
+    this.error = response.error ?? null;
+
+    if (response.status === "finished") {
       this.activeJobId = null;
-      this.meteoSummary = status.result.meteo_summary;
-      this.windTimeseries = status.result.wind_timeseries;
-      this.windRoseData = status.result.wind_rose;
+      this.stopPolling();
+      if (response.result) {
+        this.meteoSummary = response.result.meteo_summary;
+        this.windTimeseries = response.result.wind_timeseries;
+        this.windRoseData = response.result.wind_rose;
+      }
       this.renderCharts();
       this.isLoading = false;
     }
-    if (status.status === "failed") {
+    if (response.status === "failed") {
       this.activeJobId = null;
-      this.error = status.error || "El análisis no pudo completarse.";
+      this.stopPolling();
+      this.error = response.error || "El análisis no pudo completarse.";
       this.isLoading = false;
     }
   }
