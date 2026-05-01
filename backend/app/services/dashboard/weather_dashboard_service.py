@@ -49,6 +49,7 @@ class WeatherDashboardService:
                 "bbox": [min_lon, min_lat, max_lon, max_lat],
                 "source": "bbox",
                 "crs": "EPSG:4326",
+
             }
 
         geometry = descriptor.get("geometry")
@@ -64,6 +65,7 @@ class WeatherDashboardService:
                 "bbox": [min_lon, min_lat, max_lon, max_lat],
                 "source": "geometry",
                 "crs": "EPSG:4326",
+
             }
 
         case_path = descriptor.get("case_path")
@@ -72,7 +74,14 @@ class WeatherDashboardService:
             candidates = [base / "SHP" / "dominio.geojson", base / "SHP" / "dominio.shp"]
             for candidate in candidates:
                 if candidate.exists():
-                    gdf = gpd.read_file(candidate)
+                    try:
+                        gdf = gpd.read_file(candidate)
+                    except Exception as exc:
+                        raise DashboardDataError(
+                            f"Could not read domain file: {candidate.name}",
+                            "INVALID_CASE_DOMAIN",
+                            422,
+                        ) from exc
                     if not gdf.empty and gdf.geometry.notna().any():
                         gdf_wgs84 = gdf.to_crs(epsg=4326) if gdf.crs is not None else gdf
                         min_lon, min_lat, max_lon, max_lat = map(float, gdf_wgs84.total_bounds)
@@ -82,6 +91,8 @@ class WeatherDashboardService:
                             "bbox": [min_lon, min_lat, max_lon, max_lat],
                             "source": f"case_path:{candidate.name}",
                             "crs": "EPSG:4326",
+                            "case_path": str(base),
+
                         }
             raise DashboardDataError(
                 "Domain file not found or empty in case_path (expected SHP/dominio.geojson or SHP/dominio.shp)",
@@ -109,8 +120,31 @@ class WeatherDashboardService:
         }
 
         try:
-            df = self.era5_service.fetch_hourly(year=year, case_path=None, fallback_to_mock=False)
+            df = self.era5_service.fetch_hourly(
+                year=year,
+                case_path=resolved.get("case_path"),
+            )
         except Exception as exc:
+            detail = str(exc)
+            lowered = detail.lower()
+            if "dominio.geojson" in lowered or "dominio.shp" in lowered or "dominio válido" in lowered:
+                raise DashboardDataError(
+                    "Domain file not found or invalid in case_path (expected SHP/dominio.geojson or SHP/dominio.shp)",
+                    "INVALID_CASE_DOMAIN",
+                    422,
+                ) from exc
+            if ".cdsapirc" in lowered or "missing/incomplete configuration file" in lowered:
+                raise DashboardDataError(
+                    "CDS credentials not found (~/.cdsapirc)",
+                    "CDS_CREDENTIALS_MISSING",
+                    503,
+                ) from exc
+            if "cdsapi" in lowered and "instala" in lowered:
+                raise DashboardDataError(
+                    "CDS client dependency missing (install cdsapi)",
+                    "CDS_CLIENT_MISSING",
+                    500,
+                ) from exc
             raise DashboardDataError(
                 "ERA5 fetch failed (network timeout or upstream error)",
                 "ERA5_UPSTREAM_ERROR",
