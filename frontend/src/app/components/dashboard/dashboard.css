@@ -287,3 +287,16 @@
 }
 
 .hint-message { color:#555; font-size:14px; margin:0; }
+
+
+.btn-folder {
+  padding: 10px 18px;
+  background: #ffffff;
+  color: #333;
+  border: 1px solid #cfcfcf;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-folder:hover { border-color: #667eea; }

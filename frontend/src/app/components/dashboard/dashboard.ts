@@ -52,6 +52,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   roseContainerId = 'wind-rose-chart';
   private destroy$ = new Subject<void>();
 
+  private readonly baseCasesPath = 'C:\\Datos_TFG';
+
   constructor(
     private dashboardService: DashboardService,
     private mapContextService: MapContextService
@@ -80,6 +82,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
     if (this.years.length > 0) {
       this.selectedYear = this.years[0];
+    }
+  }
+
+
+  async selectFolderFromDashboard(): Promise<void> {
+    try {
+      const dirHandle = await (window as any).showDirectoryPicker();
+      const selectedPath = `${this.baseCasesPath}\\${dirHandle.name}`;
+      this.casePath = selectedPath;
+      this.mapContextService.setCasePath(selectedPath);
+      this.error = null;
+    } catch (err) {
+      console.error('Selección de carpeta cancelada o no soportada:', err);
     }
   }
 
