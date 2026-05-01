@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 from shapely.geometry import shape
 
+from app.services.case_import.import_folder_service import import_folder_from_input_path
 from app.services.dashboard.era5_service import Era5Service
 
 
@@ -34,6 +35,39 @@ class WeatherDashboardService:
                 error_code="INVALID_YEAR",
                 http_status=422,
             )
+
+
+    def _read_case_domain_bounds(self, base: Path) -> tuple[list[float], str] | None:
+        candidates = [base / "SHP" / "dominio.geojson", base / "SHP" / "dominio.shp"]
+        for candidate in candidates:
+            if not candidate.exists():
+                continue
+            try:
+                gdf = gpd.read_file(candidate)
+            except Exception as exc:
+                raise DashboardDataError(
+                    f"Could not read domain file: {candidate.name}",
+                    "INVALID_CASE_DOMAIN",
+                    422,
+                ) from exc
+
+            if gdf.empty or not gdf.geometry.notna().any():
+                continue
+
+            gdf_wgs84 = gdf.to_crs(epsg=4326) if gdf.crs is not None else gdf
+            min_lon, min_lat, max_lon, max_lat = map(float, gdf_wgs84.total_bounds)
+            if min_lon >= max_lon or min_lat >= max_lat:
+                continue
+
+            return [min_lon, min_lat, max_lon, max_lat], candidate.name
+
+        return None
+
+    def _generate_case_domain(self, base: Path) -> None:
+        try:
+            import_folder_from_input_path(str(base))
+        except Exception:
+            return
 
     def _resolve_domain_descriptor(self, domain: Any) -> dict[str, Any]:
         descriptor = domain.model_dump() if hasattr(domain, "model_dump") else dict(domain or {})
@@ -71,34 +105,29 @@ class WeatherDashboardService:
         case_path = descriptor.get("case_path")
         if case_path:
             base = Path(case_path)
-            candidates = [base / "SHP" / "dominio.geojson", base / "SHP" / "dominio.shp"]
-            for candidate in candidates:
-                if candidate.exists():
-                    try:
-                        gdf = gpd.read_file(candidate)
-                    except Exception as exc:
-                        raise DashboardDataError(
-                            f"Could not read domain file: {candidate.name}",
-                            "INVALID_CASE_DOMAIN",
-                            422,
-                        ) from exc
-                    if not gdf.empty and gdf.geometry.notna().any():
-                        gdf_wgs84 = gdf.to_crs(epsg=4326) if gdf.crs is not None else gdf
-                        min_lon, min_lat, max_lon, max_lat = map(float, gdf_wgs84.total_bounds)
-                        return {
-                            "lat": (min_lat + max_lat) / 2.0,
-                            "lon": (min_lon + max_lon) / 2.0,
-                            "bbox": [min_lon, min_lat, max_lon, max_lat],
-                            "source": f"case_path:{candidate.name}",
-                            "crs": "EPSG:4326",
-                            "case_path": str(base),
+            domain_bounds = self._read_case_domain_bounds(base)
+            if domain_bounds is None:
+                self._generate_case_domain(base)
+                domain_bounds = self._read_case_domain_bounds(base)
 
-                        }
-            raise DashboardDataError(
-                "Domain file not found or empty in case_path (expected SHP/dominio.geojson or SHP/dominio.shp)",
-                "INVALID_CASE_DOMAIN",
-                422,
-            )
+            if domain_bounds is None:
+                raise DashboardDataError(
+                    "falta dominio y no se pudo generar desde apoyos",
+                    "INVALID_CASE_DOMAIN",
+                    400,
+                )
+
+            bbox, filename = domain_bounds
+            min_lon, min_lat, max_lon, max_lat = bbox
+            return {
+                "lat": (min_lat + max_lat) / 2.0,
+                "lon": (min_lon + max_lon) / 2.0,
+                "bbox": bbox,
+                "source": f"case_path:{filename}",
+                "crs": "EPSG:4326",
+                "case_path": str(base),
+
+            }
 
         raise DashboardDataError(
             "Provide one valid domain source (bbox, geometry, or case_path)",
