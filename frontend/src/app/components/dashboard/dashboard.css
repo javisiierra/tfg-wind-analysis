@@ -285,3 +285,5 @@
     font-size: 24px;
   }
 }
+
+.hint-message { color:#555; font-size:14px; margin:0; }
