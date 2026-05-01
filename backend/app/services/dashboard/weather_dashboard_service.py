@@ -200,6 +200,12 @@ class WeatherDashboardService:
                     "ERA5_DOWNLOAD_FAILED",
                     500,
                 ) from exc
+            if "required licences not accepted" in lowered and "reanalysis-era5-single-levels" in lowered:
+                raise DashboardDataError(
+                    "No se pudo descargar ERA5 porque no se han aceptado las licencias del dataset reanalysis-era5-single-levels en Copernicus CDS.",
+                    "ERA5_DOWNLOAD_FAILED",
+                    500,
+                ) from exc
             if "cdsapi" in lowered and "instala" in lowered:
                 raise DashboardDataError(
                     "No se pudo descargar o leer ERA5: falta la dependencia del cliente CDS (cdsapi).",
