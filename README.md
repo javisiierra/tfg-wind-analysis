@@ -73,3 +73,15 @@ Versión 1.0.0 - Base funcional
 ## Autor
 
 Trabajo Fin de Grado (TFG) -- Javier Sierra
+
+
+## Rutas API: Dashboard vs Pipeline
+
+- **Dashboard-only** (`/api/v1/dashboard/*`):
+  - `POST /api/v1/dashboard/meteo-summary`
+  - `POST /api/v1/dashboard/wind-timeseries`
+  - `POST /api/v1/dashboard/wind-rose`
+
+- **Pipeline WindNinja** (`/api/v1/*` en `pipeline.py`):
+  - Endpoints de importación de caso, generación de dominio, DEM, apoyos, escenarios y ejecución WindNinja.
+  - Se mantienen separados de dashboard para no introducir cambios funcionales directos en el flujo crítico de WindNinja.

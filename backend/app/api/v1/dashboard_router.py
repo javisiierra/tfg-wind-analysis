@@ -16,6 +16,7 @@ class MeteoRequest(BaseModel):
     geometry: Optional[Dict] = None
     bbox: Optional[Tuple[float, float, float, float]] = None
     case_path: Optional[str] = None
+    use_mock_fallback: bool = True
 
     @model_validator(mode="after")
     def validate_domain(self):

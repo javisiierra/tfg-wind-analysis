@@ -10,13 +10,14 @@ import numpy as np
 import pandas as pd
 from shapely.geometry import shape
 
-from app.services.wind.source_service import fetch_power_hourly
+from app.services.dashboard.era5_service import Era5Service
 
 
 @dataclass
 class WeatherDashboardService:
     start_year: int = 2000
     end_year: int = 2099
+    era5_service: Era5Service = Era5Service()
 
     def _validate_year(self, year: int) -> None:
         if not isinstance(year, int) or year < self.start_year or year > self.end_year:
