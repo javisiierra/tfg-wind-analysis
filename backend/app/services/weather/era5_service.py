@@ -183,3 +183,18 @@ def calculate_wind_rose(df: pd.DataFrame) -> list[dict[str, Any]]:
 def calculate_viability(mean_wind_speed: float) -> float:
     """Calculate viability index from mean wind speed in m/s, clamped to [0, 1]."""
     return float(np.clip(mean_wind_speed / 8.0, 0.0, 1.0))
+
+
+def load_era5_dataset(path: str) -> pd.DataFrame:
+    """Compatibility wrapper for ERA5 dataset loading."""
+    return analyze_hourly_wind_dataset(path)
+
+
+def analyze_wind(df: pd.DataFrame) -> dict[str, Any]:
+    """Aggregate wind metrics for dashboard endpoints."""
+    meteo_summary, timeseries = calculate_monthly_summary(df)
+    return {
+        "meteo_summary": meteo_summary,
+        "timeseries": timeseries,
+        "wind_rose": calculate_wind_rose(df),
+    }
