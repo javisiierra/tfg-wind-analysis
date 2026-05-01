@@ -11,7 +11,7 @@ import geopandas as gpd
 import pandas as pd
 from shapely.geometry import box, shape
 
-from app.services.weather.era5_service import analyze_wind, download_era5_for_bbox_year, load_era5_dataset
+from app.services.weather.era5_service import analyze_wind, download_era5_for_bbox_year, era5_cache_target_path, load_era5_dataset
 
 
 logger = logging.getLogger(__name__)
@@ -225,6 +225,28 @@ class WeatherDashboardService:
                 404,
             )
         return df, resolved, meta
+
+
+    def get_dashboard_bundle(self, year: int, domain: Any | None = None, progress_cb=None) -> dict[str, Any]:
+        if progress_cb:
+            progress_cb(30, "Comprobando caché ERA5...")
+        df, resolved, meta = self._load_year_data(year, domain)
+
+        if progress_cb:
+            cache_file = Path(era5_cache_target_path(resolved["bbox"], year))
+            if cache_file.exists() and cache_file.stat().st_size > 0:
+                progress_cb(45, "Usando datos ERA5 cacheados")
+            else:
+                progress_cb(45, "Descargando ERA5...")
+            progress_cb(70, "Leyendo dataset...")
+            progress_cb(85, "Calculando métricas...")
+
+        metrics = analyze_wind(df)
+        return {
+            "meteo_summary": {**metrics["meteo_summary"], **meta},
+            "wind_timeseries": [{**item, **meta} for item in metrics["timeseries"]],
+            "wind_rose": [{**item, **meta} for item in metrics["wind_rose"]],
+        }
 
     def get_meteo_summary(self, year: int, domain: Any | None = None) -> dict[str, Any]:
         df, _, meta = self._load_year_data(year, domain)

@@ -1,9 +1,9 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Subject } from 'rxjs';
+import { Subject, interval } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
-import { DashboardService, MeteoRequestPayload } from '../../services/dashboard.service';
+import { DashboardAsyncStatusResponse, DashboardService, MeteoRequestPayload } from '../../services/dashboard.service';
 import { MapContextService } from '../../services/map-context.service';
 
 interface MeteoSummary {
@@ -43,6 +43,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
   casePath = '';
   isLoading = false;
   error: string | null = null;
+  progress = 0;
+  progressMessage = "";
+  private activeJobId: string | null = null;
 
   meteoSummary: MeteoSummary | null = null;
   windTimeseries: WindTimeseries[] = [];
@@ -113,18 +116,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
         return;
       }
 
-      const requestPayload: MeteoRequestPayload = {
-        year: this.selectedYear!,
-        case_path: validatedPath
-      };
-
-      this.dashboardService.getMeteoSummary(requestPayload).subscribe({
-        next: (summary) => {
-          this.meteoSummary = summary;
-          this.loadWindTimeseries(requestPayload);
+      const requestPayload: MeteoRequestPayload = { year: this.selectedYear!, case_path: validatedPath, source: "ERA5" };
+      this.progress = 5;
+      this.progressMessage = "Preparando análisis...";
+      this.dashboardService.startMeteoSummary(requestPayload).subscribe({
+        next: (response) => {
+          this.activeJobId = response.job_id;
+          this.startPollingJobStatus(response.job_id);
         },
         error: (err) => {
-          this.error = `Error al obtener resumen meteorológico: ${err.message}`;
+          this.error = `Error al iniciar análisis: ${err.message}`;
           this.isLoading = false;
         }
       });
@@ -156,31 +157,37 @@ export class DashboardComponent implements OnInit, OnDestroy {
     });
   }
 
-  private loadWindTimeseries(payload: MeteoRequestPayload): void {
-    this.dashboardService.getWindTimeseries(payload).subscribe({
-      next: (data) => {
-        this.windTimeseries = data;
-        this.loadWindRose(payload);
-      },
-      error: (err) => {
-        this.error = `Error al obtener series temporales: ${err.message}`;
-        this.isLoading = false;
-      }
+  private startPollingJobStatus(jobId: string): void {
+    interval(2500).pipe(takeUntil(this.destroy$)).subscribe(() => {
+      if (!this.activeJobId) return;
+      this.dashboardService.getMeteoSummaryStatus(jobId).subscribe({
+        next: (status) => this.handleJobStatus(status),
+        error: () => {
+          this.error = "No se pudo consultar el estado del análisis.";
+          this.isLoading = false;
+          this.activeJobId = null;
+        }
+      });
     });
+    this.dashboardService.getMeteoSummaryStatus(jobId).subscribe((status) => this.handleJobStatus(status));
   }
 
-  private loadWindRose(payload: MeteoRequestPayload): void {
-    this.dashboardService.getWindRose(payload).subscribe({
-      next: (data) => {
-        this.windRoseData = data;
-        this.renderCharts();
-        this.isLoading = false;
-      },
-      error: (err) => {
-        this.error = `Error al obtener rosa de vientos: ${err.message}`;
-        this.isLoading = false;
-      }
-    });
+  private handleJobStatus(status: DashboardAsyncStatusResponse): void {
+    this.progress = status.progress ?? 0;
+    this.progressMessage = status.message || "Procesando...";
+    if (status.status === "finished" && status.result) {
+      this.activeJobId = null;
+      this.meteoSummary = status.result.meteo_summary;
+      this.windTimeseries = status.result.wind_timeseries;
+      this.windRoseData = status.result.wind_rose;
+      this.renderCharts();
+      this.isLoading = false;
+    }
+    if (status.status === "failed") {
+      this.activeJobId = null;
+      this.error = status.error || "El análisis no pudo completarse.";
+      this.isLoading = false;
+    }
   }
 
   private renderCharts(): void {
