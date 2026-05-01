@@ -1,0 +1,185 @@
+from __future__ import annotations
+
+import os
+import tempfile
+from datetime import datetime, timezone
+from typing import Any
+
+import numpy as np
+import pandas as pd
+import xarray as xr
+
+from app.services.wind.utils import uv_to_ws_wd
+
+
+def get_bbox_from_domain(domain_geojson: dict[str, Any]) -> list[float]:
+    """Extract `[minLon,minLat,maxLon,maxLat]` bbox from a GeoJSON domain in EPSG:4326.
+
+    Preconditions:
+      - `domain_geojson` must be GeoJSON-like and coordinates in WGS84 lon/lat (EPSG:4326).
+      - Returned bbox order is `[minLon,minLat,maxLon,maxLat]`.
+    """
+    if not isinstance(domain_geojson, dict):
+        raise ValueError("domain_geojson must be a dictionary")
+
+    coords: list[tuple[float, float]] = []
+
+    def _collect(node: Any) -> None:
+        if isinstance(node, (list, tuple)):
+            if len(node) >= 2 and all(isinstance(v, (int, float)) for v in node[:2]):
+                coords.append((float(node[0]), float(node[1])))
+            else:
+                for item in node:
+                    _collect(item)
+
+    _collect(domain_geojson.get("coordinates", domain_geojson))
+    if not coords:
+        raise ValueError("Could not extract coordinates from domain_geojson")
+
+    lons = [c[0] for c in coords]
+    lats = [c[1] for c in coords]
+    return [min(lons), min(lats), max(lons), max(lats)]
+
+
+def download_era5_for_bbox_year(bbox: list[float], year: int) -> str:
+    """Download ERA5 hourly u10/v10 for a bbox and year and return NetCDF path.
+
+    Preconditions:
+      - bbox order must be `[minLon,minLat,maxLon,maxLat]` in EPSG:4326.
+    """
+    if len(bbox) != 4:
+        raise ValueError("bbox must have 4 elements: [minLon,minLat,maxLon,maxLat]")
+    min_lon, min_lat, max_lon, max_lat = bbox
+
+    if not (os.getenv("CDSAPI_URL") and os.getenv("CDSAPI_KEY")) and not os.path.exists(os.path.expanduser("~/.cdsapirc")):
+        raise RuntimeError("CDS API credentials/configuration not found. Caller should activate mock data.")
+
+    try:
+        import cdsapi
+    except ImportError as exc:
+        raise RuntimeError("cdsapi is required to download ERA5 data") from exc
+
+    target = os.path.join(tempfile.gettempdir(), f"era5_{year}_{min_lon}_{min_lat}_{max_lon}_{max_lat}.nc")
+    days = [f"{d:02d}" for d in range(1, 32)]
+    times = [f"{h:02d}:00" for h in range(24)]
+
+    cdsapi.Client().retrieve(
+        "reanalysis-era5-single-levels",
+        {
+            "product_type": "reanalysis",
+            "variable": ["10m_u_component_of_wind", "10m_v_component_of_wind"],
+            "year": str(year),
+            "month": [f"{m:02d}" for m in range(1, 13)],
+            "day": days,
+            "time": times,
+            "area": [max_lat, min_lon, min_lat, max_lon],
+            "format": "netcdf",
+        },
+        target,
+    )
+    return target
+
+
+def analyze_hourly_wind_dataset(dataset_path: str) -> pd.DataFrame:
+    """Read ERA5 u10/v10 dataset and return hourly WS10M/WD10M DataFrame indexed in UTC.
+
+    Preconditions:
+      - Input dataset must contain `u10`, `v10`, and `time` variables.
+      - WS10M is m/s and WD10M is meteorological degrees (0-360).
+    """
+    ds = xr.open_dataset(dataset_path)
+    if "u10" not in ds or "v10" not in ds:
+        raise ValueError("Dataset must include u10 and v10 variables")
+
+    u10 = ds["u10"]
+    v10 = ds["v10"]
+    spatial_dims = [d for d in ("latitude", "longitude") if d in u10.dims]
+    if spatial_dims:
+        u10 = u10.mean(dim=spatial_dims)
+        v10 = v10.mean(dim=spatial_dims)
+
+    ws, wd = uv_to_ws_wd(u10.values, v10.values)
+    idx = pd.to_datetime(ds["time"].values, utc=True)
+    df = pd.DataFrame({"WS10M": ws, "WD10M": wd}, index=idx)
+    df.index.name = "time_utc"
+    return df.replace([np.inf, -np.inf], np.nan).dropna().sort_index()
+
+
+def calculate_monthly_summary(df: pd.DataFrame) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Calculate output dictionaries compatible with MeteoSummary and WindTimeseries.
+
+    Preconditions:
+      - DataFrame must have UTC datetime index and `WS10M`, `WD10M` columns.
+      - WS10M is m/s and WD10M is meteorological degrees.
+    """
+    if df.empty:
+        raise ValueError("Input DataFrame is empty")
+
+    ws = df["WS10M"]
+    wd = df["WD10M"]
+    year = int(df.index[0].year)
+
+    month_avg = ws.groupby(df.index.month).mean()
+    meteo_summary = {
+        "year": year,
+        "avg_velocity": float(ws.mean()),
+        "max_velocity": float(ws.max()),
+        "dominant_direction": float(wd.mode().iloc[0]) if not wd.mode().empty else 0.0,
+        "windiest_month": int(month_avg.idxmax()),
+        "viability_index": calculate_viability(float(ws.mean())),
+        "data_points": int(len(df)),
+    }
+
+    bins = [0, 2, 4, 6, 8, 10, np.inf]
+    labels = ["0-2", "2-4", "4-6", "6-8", "8-10", "10+"]
+    timeseries: list[dict[str, Any]] = []
+    for month in range(1, 13):
+        monthly = df[df.index.month == month]
+        if monthly.empty:
+            timeseries.append({"month": month, "avg_velocity": 0.0, "max_velocity": 0.0, "min_velocity": 0.0, "frequency": {k: 0.0 for k in labels}})
+            continue
+        grouped = pd.cut(monthly["WS10M"], bins=bins, labels=labels, right=False)
+        freq = grouped.value_counts(normalize=True).reindex(labels, fill_value=0.0)
+        timeseries.append({
+            "month": month,
+            "avg_velocity": float(monthly["WS10M"].mean()),
+            "max_velocity": float(monthly["WS10M"].max()),
+            "min_velocity": float(monthly["WS10M"].min()),
+            "frequency": {k: float(v) for k, v in freq.items()},
+        })
+
+    return meteo_summary, timeseries
+
+
+def calculate_wind_rose(df: pd.DataFrame) -> list[dict[str, Any]]:
+    """Calculate wind rose dictionaries compatible with WindRoseData.
+
+    Preconditions:
+      - DataFrame must have `WS10M` (m/s) and `WD10M` (meteorological degrees).
+    """
+    sectors = [
+        ("N", 348.75, 11.25), ("NNE", 11.25, 33.75), ("NE", 33.75, 56.25), ("ENE", 56.25, 78.75),
+        ("E", 78.75, 101.25), ("ESE", 101.25, 123.75), ("SE", 123.75, 146.25), ("SSE", 146.25, 168.75),
+        ("S", 168.75, 191.25), ("SSW", 191.25, 213.75), ("SW", 213.75, 236.25), ("WSW", 236.25, 258.75),
+        ("W", 258.75, 281.25), ("WNW", 281.25, 303.75), ("NW", 303.75, 326.25), ("NNW", 326.25, 348.75),
+    ]
+    wd = df["WD10M"] % 360
+    ws = df["WS10M"]
+    rows: list[dict[str, Any]] = []
+    for name, start_deg, end_deg in sectors:
+        mask = ((wd >= start_deg) & (wd < end_deg)) if start_deg < end_deg else ((wd >= start_deg) | (wd < end_deg))
+        sector_ws = ws[mask]
+        rows.append({
+            "direction": name,
+            "frequency": float(mask.mean()),
+            "velocity_range": {
+                "min": float(sector_ws.min()) if not sector_ws.empty else 0.0,
+                "max": float(sector_ws.max()) if not sector_ws.empty else 0.0,
+            },
+        })
+    return rows
+
+
+def calculate_viability(mean_wind_speed: float) -> float:
+    """Calculate viability index from mean wind speed in m/s, clamped to [0, 1]."""
+    return float(np.clip(mean_wind_speed / 8.0, 0.0, 1.0))
