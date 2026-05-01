@@ -74,7 +74,14 @@ class WeatherDashboardService:
             candidates = [base / "SHP" / "dominio.geojson", base / "SHP" / "dominio.shp"]
             for candidate in candidates:
                 if candidate.exists():
-                    gdf = gpd.read_file(candidate)
+                    try:
+                        gdf = gpd.read_file(candidate)
+                    except Exception as exc:
+                        raise DashboardDataError(
+                            f"Could not read domain file: {candidate.name}",
+                            "INVALID_CASE_DOMAIN",
+                            422,
+                        ) from exc
                     if not gdf.empty and gdf.geometry.notna().any():
                         gdf_wgs84 = gdf.to_crs(epsg=4326) if gdf.crs is not None else gdf
                         min_lon, min_lat, max_lon, max_lat = map(float, gdf_wgs84.total_bounds)

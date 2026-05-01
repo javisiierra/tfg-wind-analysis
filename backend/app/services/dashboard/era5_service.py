@@ -20,7 +20,10 @@ class Era5Service:
             for domain_path in domain_candidates:
                 if not domain_path.exists():
                     continue
-                gdf = gpd.read_file(domain_path)
+                try:
+                    gdf = gpd.read_file(domain_path)
+                except Exception as exc:
+                    raise ValueError(f"No se pudo leer el dominio del caso: {domain_path.name}") from exc
                 if gdf.empty or not gdf.geometry.notna().any():
                     continue
                 gdf_wgs84 = gdf.to_crs(epsg=4326) if gdf.crs is not None else gdf
