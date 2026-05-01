@@ -98,6 +98,10 @@ def download_era5_for_bbox_year(
         raise RuntimeError("cdsapi is required to download ERA5 data") from exc
 
     target = era5_cache_target_path(bbox, year)
+    if os.path.exists(target):
+        logger.info("Using cached ERA5 dataset", extra={"target": target, "year": year, "bbox": bbox})
+        return target
+
     days = [f"{d:02d}" for d in range(1, 32)]
     times = [f"{h:02d}:00" for h in range(24)]
     stop_progress = Event()
@@ -149,7 +153,8 @@ def analyze_hourly_wind_dataset(dataset_path: str) -> pd.DataFrame:
     """Read ERA5 u10/v10 dataset and return hourly WS10M/WD10M DataFrame indexed in UTC.
 
     Preconditions:
-      - Input dataset must contain `u10`, `v10`, and `time` variables.
+      - Input dataset must contain `u10`, `v10`, and a temporal coordinate/variable
+        (`time`, `valid_time`, or `forecast_reference_time`).
       - WS10M is m/s and WD10M is meteorological degrees (0-360).
     """
     ds = xr.open_dataset(dataset_path)
@@ -163,8 +168,19 @@ def analyze_hourly_wind_dataset(dataset_path: str) -> pd.DataFrame:
         u10 = u10.mean(dim=spatial_dims)
         v10 = v10.mean(dim=spatial_dims)
 
+    time_name = None
+    for candidate in ("time", "valid_time", "forecast_reference_time"):
+        if candidate in ds.coords or candidate in ds.variables:
+            time_name = candidate
+            break
+
+    if time_name is None:
+        raise ValueError(
+            f"No se encontró variable temporal en ERA5. Variables disponibles: {list(ds.variables)}"
+        )
+
     ws, wd = uv_to_ws_wd(u10.values, v10.values)
-    idx = pd.to_datetime(ds["time"].values, utc=True)
+    idx = pd.to_datetime(ds[time_name].values, utc=True)
     df = pd.DataFrame({"WS10M": ws, "WD10M": wd}, index=idx)
     df.index.name = "time_utc"
     return df.replace([np.inf, -np.inf], np.nan).dropna().sort_index()

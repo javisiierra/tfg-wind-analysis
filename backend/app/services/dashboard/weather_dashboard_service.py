@@ -223,8 +223,14 @@ class WeatherDashboardService:
                     "ERA5_DOWNLOAD_FAILED",
                     500,
                 ) from exc
+            if "no se encontró variable temporal en era5" in lowered:
+                raise DashboardDataError(
+                    "No se pudo leer el NetCDF de ERA5 por un formato temporal no soportado.",
+                    "ERA5_DOWNLOAD_FAILED",
+                    500,
+                ) from exc
             raise DashboardDataError(
-                "No se pudo descargar o leer ERA5 por un error del proveedor o de red.",
+                "No se pudo descargar o leer ERA5 por un error de formato/lectura del NetCDF.",
                 "ERA5_DOWNLOAD_FAILED",
                 500,
             ) from exc
