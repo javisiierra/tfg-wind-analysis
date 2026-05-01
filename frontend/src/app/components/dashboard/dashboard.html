@@ -12,22 +12,6 @@
       </select>
     </div>
     <div class="control-group">
-      <label for="domain-type">Tipo de dominio:</label>
-      <select id="domain-type" [(ngModel)]="selectedDomainType" class="year-selector">
-        <option value="domain_id">domain_id</option>
-        <option value="bbox">bbox</option>
-        <option value="case_path">case_path</option>
-      </select>
-    </div>
-    <div class="control-group" *ngIf="selectedDomainType === 'domain_id'">
-      <label for="domain-id">Domain ID:</label>
-      <input id="domain-id" type="text" [(ngModel)]="domainId" placeholder="ej. pyrenees-west-01" />
-    </div>
-    <div class="control-group" *ngIf="selectedDomainType === 'bbox'">
-      <label for="bbox">BBox:</label>
-      <input id="bbox" type="text" [(ngModel)]="bboxText" placeholder="-4.5,40.1,-3.8,40.7" />
-    </div>
-    <div class="control-group" *ngIf="selectedDomainType === 'case_path'">
       <label for="case-path-selected">Caso activo (case_path):</label>
       <input
         id="case-path-selected"
@@ -36,13 +20,13 @@
         disabled
       />
     </div>
-    <div class="control-group" *ngIf="selectedDomainType === 'case_path'">
+    <div class="control-group">
       <label>
         <input type="checkbox" [(ngModel)]="useManualCasePath" />
         Usar ruta manual (compatibilidad temporal)
       </label>
     </div>
-    <div class="control-group" *ngIf="selectedDomainType === 'case_path' && useManualCasePath">
+    <div class="control-group" *ngIf="useManualCasePath">
       <label for="case-path-manual">Case path manual:</label>
       <input
         id="case-path-manual"

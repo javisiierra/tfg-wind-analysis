@@ -40,9 +40,6 @@ interface WindRoseData {
 export class DashboardComponent implements OnInit, OnDestroy {
   years: number[] = [];
   selectedYear: number | null = null;
-  selectedDomainType: 'domain_id' | 'bbox' | 'case_path' = 'domain_id';
-  domainId = '';
-  bboxText = '';
   casePath = '';
   manualCasePath = '';
   useManualCasePath = false;
@@ -97,16 +94,21 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.error = null;
 
     this.validateCasePathForAnalysis((validatedPath) => {
-      const domainRequest = this.buildDomainRequest(validatedPath);
-      if (!domainRequest) {
+      if (!validatedPath) {
+        this.error = 'Debes seleccionar una carpeta/caso válido.';
         this.isLoading = false;
         return;
       }
 
-      this.dashboardService.getMeteoSummary(domainRequest).subscribe({
+      const requestPayload: MeteoRequestPayload = {
+        year: this.selectedYear!,
+        case_path: validatedPath
+      };
+
+      this.dashboardService.getMeteoSummary(requestPayload).subscribe({
         next: (summary) => {
           this.meteoSummary = summary;
-          this.loadWindTimeseries(domainRequest);
+          this.loadWindTimeseries(requestPayload);
         },
         error: (err) => {
           this.error = `Error al obtener resumen meteorológico: ${err.message}`;
@@ -121,11 +123,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private validateCasePathForAnalysis(onSuccess: (validatedCasePath: string | null) => void): void {
-    if (this.selectedDomainType !== 'case_path') {
-      onSuccess(null);
-      return;
-    }
-
     const selectedPath = this.selectedCasePathForRequest;
     if (!selectedPath) {
       this.error = 'Debes seleccionar un caso activo o pegar un case_path manual.';
@@ -238,39 +235,5 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (index >= 0.5) return 'viability-medium-high';
     if (index >= 0.3) return 'viability-medium';
     return 'viability-low';
-  }
-
-  private buildDomainRequest(validatedCasePath: string | null): MeteoRequestPayload | null {
-    if (!this.selectedYear) {
-      return null;
-    }
-    const baseRequest: MeteoRequestPayload = { year: this.selectedYear };
-    if (this.selectedDomainType === 'domain_id') {
-      if (!this.domainId.trim()) {
-        this.error = 'Debes informar un domain_id';
-        return null;
-      }
-      return { ...baseRequest, domain_id: this.domainId.trim() };
-    }
-
-    if (this.selectedDomainType === 'case_path') {
-      if (!validatedCasePath) {
-        this.error = 'Debes informar un case_path válido';
-        return null;
-      }
-      return { ...baseRequest, case_path: validatedCasePath };
-    }
-
-    const values = this.bboxText.split(',').map((value) => Number(value.trim()));
-    if (values.length !== 4 || values.some((value) => Number.isNaN(value))) {
-      this.error = 'El bbox debe tener 4 números separados por coma: minLon,minLat,maxLon,maxLat';
-      return null;
-    }
-    const [minLon, minLat, maxLon, maxLat] = values;
-    if (minLon >= maxLon || minLat >= maxLat) {
-      this.error = 'El bbox es inválido: min debe ser menor que max';
-      return null;
-    }
-    return { ...baseRequest, bbox: [minLon, minLat, maxLon, maxLat] };
   }
 }
