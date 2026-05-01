@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import math
 import os
 import re
@@ -16,6 +17,8 @@ import xarray as xr
 from pyproj import CRS, Transformer
 
 from app.services.wind.utils import uv_to_ws_wd
+
+logger = logging.getLogger(__name__)
 
 
 # -----------------------
@@ -139,6 +142,19 @@ def fetch_era5_hourly_point(lat: float, lon: float, start: date, end: date) -> p
     # Caja pequeña para interpolación (0.25º suele coincidir con grid ERA5)
     d = 0.125
     area = [lat + d, lon - d, lat - d, lon + d]  # N, W, S, E
+    bbox = {"north": area[0], "west": area[1], "south": area[2], "east": area[3]}
+
+    logger.info(
+        "era5_download_start",
+        extra={
+            "event": "era5_download_start",
+            "bbox": bbox,
+            "lat": lat,
+            "lon": lon,
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+        },
+    )
 
     frames = []
     with tempfile.TemporaryDirectory() as td:
@@ -164,6 +180,18 @@ def fetch_era5_hourly_point(lat: float, lon: float, start: date, end: date) -> p
                 target,
             )
 
+            dataset_size_bytes = os.path.getsize(target) if os.path.exists(target) else None
+            logger.info(
+                "era5_download_success",
+                extra={
+                    "event": "era5_download_success",
+                    "dataset_path": target,
+                    "dataset_size_bytes": dataset_size_bytes,
+                    "year": yy,
+                    "month": mm,
+                },
+            )
+
             ds = xr.open_dataset(target)
 
             # Interpolación bilineal al punto (lat, lon)
@@ -182,6 +210,13 @@ def fetch_era5_hourly_point(lat: float, lon: float, start: date, end: date) -> p
         out = pd.concat(frames).sort_index()
         out = out.loc[(out.index.date >= start) & (out.index.date <= end)]
         out = out.replace([np.inf, -np.inf], np.nan).dropna()
+        logger.info(
+            "era5_dataset_ready",
+            extra={
+                "event": "era5_dataset_ready",
+                "dataset_size_rows": int(len(out)),
+            },
+        )
         return out
 
 
