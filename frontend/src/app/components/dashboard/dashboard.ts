@@ -41,8 +41,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
   years: number[] = [];
   selectedYear: number | null = null;
   casePath = '';
-  manualCasePath = '';
-  useManualCasePath = false;
   isLoading = false;
   error: string | null = null;
 
@@ -118,14 +116,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
     });
   }
 
-  get selectedCasePathForRequest(): string {
-    return this.useManualCasePath ? this.manualCasePath.trim() : this.casePath.trim();
-  }
-
   private validateCasePathForAnalysis(onSuccess: (validatedCasePath: string | null) => void): void {
-    const selectedPath = this.selectedCasePathForRequest;
+    const selectedPath = this.casePath.trim();
     if (!selectedPath) {
-      this.error = 'Debes seleccionar un caso activo o pegar un case_path manual.';
+      this.error = 'Debes seleccionar una carpeta desde el botón "Seleccionar carpeta" de la barra superior.';
       this.isLoading = false;
       return;
     }

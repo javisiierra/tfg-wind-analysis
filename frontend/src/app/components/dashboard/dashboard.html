@@ -20,21 +20,6 @@
         disabled
       />
     </div>
-    <div class="control-group">
-      <label>
-        <input type="checkbox" [(ngModel)]="useManualCasePath" />
-        Usar ruta manual (compatibilidad temporal)
-      </label>
-    </div>
-    <div class="control-group" *ngIf="useManualCasePath">
-      <label for="case-path-manual">Case path manual:</label>
-      <input
-        id="case-path-manual"
-        type="text"
-        [(ngModel)]="manualCasePath"
-        placeholder="/data/cases/madrid.case"
-      />
-    </div>
 
     <button
       class="btn btn-analyze"
@@ -43,6 +28,8 @@
       <span *ngIf="!isLoading">Lanzar Análisis</span>
       <span *ngIf="isLoading">Analizando...</span>
     </button>
+
+    <p class="hint-message">Selecciona la carpeta del caso con el botón <strong>"Seleccionar carpeta"</strong> en la barra superior (Mapa).</p>
 
     <div *ngIf="error" class="error-message">
       {{ error }}
