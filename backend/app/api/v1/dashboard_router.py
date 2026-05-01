@@ -16,6 +16,7 @@ class MeteoRequest(BaseModel):
     geometry: Optional[Dict] = None
     bbox: Optional[Tuple[float, float, float, float]] = None
     case_path: Optional[str] = None
+    use_mock_fallback: bool = True
 
     @model_validator(mode="after")
     def validate_domain(self):
@@ -77,7 +78,7 @@ def build_domain_seed(request: MeteoRequest) -> int:
 async def get_meteo_summary(request: MeteoRequest):
     """Obtiene el resumen meteorológico para un año específico."""
     try:
-        return MeteoSummary(**service.get_meteo_summary(request.year))
+        return MeteoSummary(**service.get_meteo_summary(request.year, case_path=request.case_path, fallback_to_mock=request.use_mock_fallback))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -86,7 +87,7 @@ async def get_meteo_summary(request: MeteoRequest):
 async def get_wind_timeseries(request: MeteoRequest):
     """Obtiene las series temporales mensuales de viento."""
     try:
-        return [WindTimeseries(**item) for item in service.get_wind_timeseries(request.year)]
+        return [WindTimeseries(**item) for item in service.get_wind_timeseries(request.year, case_path=request.case_path, fallback_to_mock=request.use_mock_fallback)]
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -95,6 +96,6 @@ async def get_wind_timeseries(request: MeteoRequest):
 async def get_wind_rose(request: MeteoRequest):
     """Obtiene los datos de rosa de vientos (16 direcciones)."""
     try:
-        return [WindRoseData(**item) for item in service.get_wind_rose(request.year)]
+        return [WindRoseData(**item) for item in service.get_wind_rose(request.year, case_path=request.case_path, fallback_to_mock=request.use_mock_fallback)]
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

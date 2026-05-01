@@ -7,27 +7,28 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from app.services.wind.source_service import fetch_power_hourly
+from app.services.dashboard.era5_service import Era5Service
 
 
 @dataclass
 class WeatherDashboardService:
     start_year: int = 2000
     end_year: int = 2099
+    era5_service: Era5Service = Era5Service()
 
     def _validate_year(self, year: int) -> None:
         if not isinstance(year, int) or year < self.start_year or year > self.end_year:
             raise ValueError(f"Year must be a valid year ({self.start_year}-{self.end_year})")
 
-    def _load_year_data(self, year: int) -> pd.DataFrame:
+    def _load_year_data(self, year: int, case_path: str | None = None, fallback_to_mock: bool | None = None) -> pd.DataFrame:
         self._validate_year(year)
-        df = fetch_power_hourly(lat=40.4168, lon=-3.7038, start=date(year, 1, 1), end=date(year, 12, 31))
+        df = self.era5_service.fetch_hourly(year=year, case_path=case_path, fallback_to_mock=fallback_to_mock)
         if df.empty:
             raise ValueError(f"No meteorological data available for year {year}")
         return df
 
-    def get_meteo_summary(self, year: int) -> dict[str, Any]:
-        df = self._load_year_data(year)
+    def get_meteo_summary(self, year: int, case_path: str | None = None, fallback_to_mock: bool | None = None) -> dict[str, Any]:
+        df = self._load_year_data(year, case_path=case_path, fallback_to_mock=fallback_to_mock)
 
         month_avg = df["WS10M"].groupby(df.index.month).mean()
         dominant_direction = float(df["WD10M"].mode().iloc[0]) if not df["WD10M"].mode().empty else 0.0
@@ -43,8 +44,8 @@ class WeatherDashboardService:
             "data_points": int(len(df)),
         }
 
-    def get_wind_timeseries(self, year: int) -> list[dict[str, Any]]:
-        df = self._load_year_data(year)
+    def get_wind_timeseries(self, year: int, case_path: str | None = None, fallback_to_mock: bool | None = None) -> list[dict[str, Any]]:
+        df = self._load_year_data(year, case_path=case_path, fallback_to_mock=fallback_to_mock)
         out: list[dict[str, Any]] = []
 
         bins = [0, 2, 4, 6, 8, 10, np.inf]
@@ -78,8 +79,8 @@ class WeatherDashboardService:
 
         return out
 
-    def get_wind_rose(self, year: int) -> list[dict[str, Any]]:
-        df = self._load_year_data(year)
+    def get_wind_rose(self, year: int, case_path: str | None = None, fallback_to_mock: bool | None = None) -> list[dict[str, Any]]:
+        df = self._load_year_data(year, case_path=case_path, fallback_to_mock=fallback_to_mock)
 
         sectors = [
             ("N", 348.75, 360.0),
