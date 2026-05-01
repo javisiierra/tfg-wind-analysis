@@ -26,6 +26,14 @@ export interface WindRoseData {
   velocity_range: { min: number; max: number };
 }
 
+export interface MeteoRequestPayload {
+  year: number;
+  domain_id?: string;
+  geometry?: Record<string, unknown>;
+  bbox?: [number, number, number, number];
+  case_path?: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -39,10 +47,10 @@ export class DashboardService {
    * @param year Año para el cual obtener el resumen
    * @returns Observable con los datos del resumen meteorológico
    */
-  getMeteoSummary(year: number): Observable<MeteoSummary> {
+  getMeteoSummary(payload: MeteoRequestPayload): Observable<MeteoSummary> {
     return this.http.post<MeteoSummary>(
       `${this.apiUrl}/dashboard/meteo-summary`,
-      { year }
+      payload
     );
   }
 
@@ -51,10 +59,10 @@ export class DashboardService {
    * @param year Año para el cual obtener los datos
    * @returns Observable con las series temporales de viento
    */
-  getWindTimeseries(year: number): Observable<WindTimeseries[]> {
+  getWindTimeseries(payload: MeteoRequestPayload): Observable<WindTimeseries[]> {
     return this.http.post<WindTimeseries[]>(
       `${this.apiUrl}/dashboard/wind-timeseries`,
-      { year }
+      payload
     );
   }
 
@@ -63,10 +71,10 @@ export class DashboardService {
    * @param year Año para el cual obtener los datos
    * @returns Observable con los datos de rosa de vientos
    */
-  getWindRose(year: number): Observable<WindRoseData[]> {
+  getWindRose(payload: MeteoRequestPayload): Observable<WindRoseData[]> {
     return this.http.post<WindRoseData[]>(
       `${this.apiUrl}/dashboard/wind-rose`,
-      { year }
+      payload
     );
   }
 }
