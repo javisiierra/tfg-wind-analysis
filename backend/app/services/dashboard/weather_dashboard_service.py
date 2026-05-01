@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from pathlib import Path
 from typing import Any
 
+import geopandas as gpd
 import numpy as np
 import pandas as pd
+from shapely.geometry import shape
 
 from app.services.wind.source_service import fetch_power_hourly
 
@@ -19,15 +22,78 @@ class WeatherDashboardService:
         if not isinstance(year, int) or year < self.start_year or year > self.end_year:
             raise ValueError(f"Year must be a valid year ({self.start_year}-{self.end_year})")
 
-    def _load_year_data(self, year: int) -> pd.DataFrame:
+    def _resolve_domain_descriptor(self, domain: Any) -> dict[str, Any]:
+        descriptor = domain.model_dump() if hasattr(domain, "model_dump") else dict(domain or {})
+
+        bbox = descriptor.get("bbox")
+        if bbox is not None:
+            min_lon, min_lat, max_lon, max_lat = map(float, bbox)
+            return {
+                "lat": (min_lat + max_lat) / 2.0,
+                "lon": (min_lon + max_lon) / 2.0,
+                "bbox": [min_lon, min_lat, max_lon, max_lat],
+                "source": "bbox",
+            }
+
+        geometry = descriptor.get("geometry")
+        if geometry is not None:
+            geom = shape(geometry)
+            min_lon, min_lat, max_lon, max_lat = map(float, geom.bounds)
+            return {
+                "lat": (min_lat + max_lat) / 2.0,
+                "lon": (min_lon + max_lon) / 2.0,
+                "bbox": [min_lon, min_lat, max_lon, max_lat],
+                "source": "geometry",
+            }
+
+        case_path = descriptor.get("case_path")
+        if case_path:
+            base = Path(case_path)
+            candidates = [base / "SHP" / "dominio.geojson", base / "SHP" / "dominio.shp"]
+            for candidate in candidates:
+                if candidate.exists():
+                    gdf = gpd.read_file(candidate)
+                    if not gdf.empty and gdf.geometry.notna().any():
+                        gdf_wgs84 = gdf.to_crs(epsg=4326) if gdf.crs is not None else gdf
+                        min_lon, min_lat, max_lon, max_lat = map(float, gdf_wgs84.total_bounds)
+                        return {
+                            "lat": (min_lat + max_lat) / 2.0,
+                            "lon": (min_lon + max_lon) / 2.0,
+                            "bbox": [min_lon, min_lat, max_lon, max_lat],
+                            "source": f"case_path:{candidate.name}",
+                        }
+
+        domain_id = descriptor.get("domain_id")
+        if domain_id:
+            return {
+                "lat": 40.4168,
+                "lon": -3.7038,
+                "bbox": None,
+                "source": f"domain_id:{domain_id}:mock_fallback",
+            }
+
+        return {
+            "lat": 40.4168,
+            "lon": -3.7038,
+            "bbox": None,
+            "source": "mock_fallback_madrid",
+        }
+
+    def _load_year_data(self, year: int, domain: Any | None = None) -> tuple[pd.DataFrame, dict[str, Any]]:
         self._validate_year(year)
-        df = fetch_power_hourly(lat=40.4168, lon=-3.7038, start=date(year, 1, 1), end=date(year, 12, 31))
+        resolved = self._resolve_domain_descriptor(domain)
+        df = fetch_power_hourly(
+            lat=resolved["lat"],
+            lon=resolved["lon"],
+            start=date(year, 1, 1),
+            end=date(year, 12, 31),
+        )
         if df.empty:
             raise ValueError(f"No meteorological data available for year {year}")
-        return df
+        return df, resolved
 
-    def get_meteo_summary(self, year: int) -> dict[str, Any]:
-        df = self._load_year_data(year)
+    def get_meteo_summary(self, year: int, domain: Any | None = None) -> dict[str, Any]:
+        df, resolved = self._load_year_data(year, domain)
 
         month_avg = df["WS10M"].groupby(df.index.month).mean()
         dominant_direction = float(df["WD10M"].mode().iloc[0]) if not df["WD10M"].mode().empty else 0.0
@@ -41,10 +107,12 @@ class WeatherDashboardService:
             "windiest_month": int(month_avg.idxmax()),
             "viability_index": viability_index,
             "data_points": int(len(df)),
+            "source": resolved["source"],
+            "bbox": resolved["bbox"],
         }
 
-    def get_wind_timeseries(self, year: int) -> list[dict[str, Any]]:
-        df = self._load_year_data(year)
+    def get_wind_timeseries(self, year: int, domain: Any | None = None) -> dict[str, Any]:
+        df, resolved = self._load_year_data(year, domain)
         out: list[dict[str, Any]] = []
 
         bins = [0, 2, 4, 6, 8, 10, np.inf]
@@ -76,10 +144,10 @@ class WeatherDashboardService:
                 }
             )
 
-        return out
+        return {"items": out, "source": resolved["source"], "bbox": resolved["bbox"]}
 
-    def get_wind_rose(self, year: int) -> list[dict[str, Any]]:
-        df = self._load_year_data(year)
+    def get_wind_rose(self, year: int, domain: Any | None = None) -> dict[str, Any]:
+        df, resolved = self._load_year_data(year, domain)
 
         sectors = [
             ("N", 348.75, 360.0),
@@ -121,4 +189,4 @@ class WeatherDashboardService:
                 }
             )
 
-        return rows
+        return {"items": rows, "source": resolved["source"], "bbox": resolved["bbox"]}

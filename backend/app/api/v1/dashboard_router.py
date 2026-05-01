@@ -46,6 +46,8 @@ class MeteoSummary(BaseModel):
     windiest_month: int
     viability_index: float
     data_points: int
+    source: str
+    bbox: Optional[Tuple[float, float, float, float]] = None
 
 
 class WindTimeseries(BaseModel):
@@ -54,12 +56,16 @@ class WindTimeseries(BaseModel):
     max_velocity: float
     min_velocity: float
     frequency: Dict[str, float]
+    source: str
+    bbox: Optional[Tuple[float, float, float, float]] = None
 
 
 class WindRoseData(BaseModel):
     direction: str
     frequency: float
     velocity_range: Dict[str, float]
+    source: str
+    bbox: Optional[Tuple[float, float, float, float]] = None
 
 
 def build_domain_seed(request: MeteoRequest) -> int:
@@ -77,7 +83,7 @@ def build_domain_seed(request: MeteoRequest) -> int:
 async def get_meteo_summary(request: MeteoRequest):
     """Obtiene el resumen meteorológico para un año específico."""
     try:
-        return MeteoSummary(**service.get_meteo_summary(request.year))
+        return MeteoSummary(**service.get_meteo_summary(request.year, request))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -86,7 +92,8 @@ async def get_meteo_summary(request: MeteoRequest):
 async def get_wind_timeseries(request: MeteoRequest):
     """Obtiene las series temporales mensuales de viento."""
     try:
-        return [WindTimeseries(**item) for item in service.get_wind_timeseries(request.year)]
+        result = service.get_wind_timeseries(request.year, request)
+        return [WindTimeseries(**item, source=result["source"], bbox=result["bbox"]) for item in result["items"]]
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -95,6 +102,7 @@ async def get_wind_timeseries(request: MeteoRequest):
 async def get_wind_rose(request: MeteoRequest):
     """Obtiene los datos de rosa de vientos (16 direcciones)."""
     try:
-        return [WindRoseData(**item) for item in service.get_wind_rose(request.year)]
+        result = service.get_wind_rose(request.year, request)
+        return [WindRoseData(**item, source=result["source"], bbox=result["bbox"]) for item in result["items"]]
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
