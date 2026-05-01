@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { DashboardService } from '../../services/dashboard.service';
+import { DashboardService, MeteoRequestPayload } from '../../services/dashboard.service';
 
 interface MeteoSummary {
   year: number;
@@ -37,6 +37,10 @@ interface WindRoseData {
 export class DashboardComponent implements OnInit {
   years: number[] = [];
   selectedYear: number | null = null;
+  selectedDomainType: 'domain_id' | 'bbox' | 'case_path' = 'domain_id';
+  domainId = '';
+  bboxText = '';
+  casePath = '';
   isLoading = false;
   error: string | null = null;
 
@@ -71,14 +75,18 @@ export class DashboardComponent implements OnInit {
       this.error = 'Por favor selecciona un año';
       return;
     }
+    const domainRequest = this.buildDomainRequest();
+    if (!domainRequest) {
+      return;
+    }
 
     this.isLoading = true;
     this.error = null;
 
-    this.dashboardService.getMeteoSummary(this.selectedYear).subscribe({
+    this.dashboardService.getMeteoSummary(domainRequest).subscribe({
       next: (summary) => {
         this.meteoSummary = summary;
-        this.loadWindTimeseries();
+        this.loadWindTimeseries(domainRequest);
       },
       error: (err) => {
         this.error = `Error al obtener resumen meteorológico: ${err.message}`;
@@ -87,13 +95,11 @@ export class DashboardComponent implements OnInit {
     });
   }
 
-  private loadWindTimeseries(): void {
-    if (!this.selectedYear) return;
-
-    this.dashboardService.getWindTimeseries(this.selectedYear).subscribe({
+  private loadWindTimeseries(payload: MeteoRequestPayload): void {
+    this.dashboardService.getWindTimeseries(payload).subscribe({
       next: (data) => {
         this.windTimeseries = data;
-        this.loadWindRose();
+        this.loadWindRose(payload);
       },
       error: (err) => {
         this.error = `Error al obtener series temporales: ${err.message}`;
@@ -102,10 +108,8 @@ export class DashboardComponent implements OnInit {
     });
   }
 
-  private loadWindRose(): void {
-    if (!this.selectedYear) return;
-
-    this.dashboardService.getWindRose(this.selectedYear).subscribe({
+  private loadWindRose(payload: MeteoRequestPayload): void {
+    this.dashboardService.getWindRose(payload).subscribe({
       next: (data) => {
         this.windRoseData = data;
         this.renderCharts();
@@ -179,5 +183,39 @@ export class DashboardComponent implements OnInit {
     if (index >= 0.5) return 'viability-medium-high';
     if (index >= 0.3) return 'viability-medium';
     return 'viability-low';
+  }
+
+  private buildDomainRequest(): MeteoRequestPayload | null {
+    if (!this.selectedYear) {
+      return null;
+    }
+    const baseRequest: MeteoRequestPayload = { year: this.selectedYear };
+    if (this.selectedDomainType === 'domain_id') {
+      if (!this.domainId.trim()) {
+        this.error = 'Debes informar un domain_id';
+        return null;
+      }
+      return { ...baseRequest, domain_id: this.domainId.trim() };
+    }
+
+    if (this.selectedDomainType === 'case_path') {
+      if (!this.casePath.trim()) {
+        this.error = 'Debes informar un case_path';
+        return null;
+      }
+      return { ...baseRequest, case_path: this.casePath.trim() };
+    }
+
+    const values = this.bboxText.split(',').map((value) => Number(value.trim()));
+    if (values.length !== 4 || values.some((value) => Number.isNaN(value))) {
+      this.error = 'El bbox debe tener 4 números separados por coma: minLon,minLat,maxLon,maxLat';
+      return null;
+    }
+    const [minLon, minLat, maxLon, maxLat] = values;
+    if (minLon >= maxLon || minLat >= maxLat) {
+      this.error = 'El bbox es inválido: min debe ser menor que max';
+      return null;
+    }
+    return { ...baseRequest, bbox: [minLon, minLat, maxLon, maxLat] };
   }
 }
