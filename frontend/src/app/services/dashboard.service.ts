@@ -35,6 +35,16 @@ export interface MeteoRequestPayload {
   case_path?: string;
 }
 
+export interface CaseStatusResponse {
+  case_path: string;
+  has_domain: boolean;
+  has_weather: boolean;
+  has_dem: boolean;
+  has_apoyos: boolean;
+  has_vanos: boolean;
+  ready_for_windninja: boolean;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -76,6 +86,13 @@ export class DashboardService {
     return this.http.post<WindRoseData[]>(
       `${this.apiBaseUrl}/dashboard/wind-rose`,
       payload
+    );
+  }
+
+  getCaseStatus(casePath: string): Observable<CaseStatusResponse> {
+    return this.http.post<CaseStatusResponse>(
+      `${this.apiBaseUrl}/case/status`,
+      { case_path: casePath }
     );
   }
 }
