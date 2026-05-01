@@ -4,7 +4,7 @@ from typing import Dict, List, Optional, Tuple
 import hashlib
 import random
 
-from app.services.dashboard.weather_dashboard_service import WeatherDashboardService
+from app.services.dashboard.weather_dashboard_service import DashboardDataError, WeatherDashboardService
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 service = WeatherDashboardService()
@@ -48,7 +48,11 @@ class MeteoSummary(BaseModel):
     viability_index: float
     data_points: int
     source: str
-    bbox: Optional[Tuple[float, float, float, float]] = None
+    request_id: str
+    domain_bbox: Optional[Tuple[float, float, float, float]] = None
+    time_range: Dict[str, str]
+    crs: str
+    status: str
 
 
 class WindTimeseries(BaseModel):
@@ -58,7 +62,11 @@ class WindTimeseries(BaseModel):
     min_velocity: float
     frequency: Dict[str, float]
     source: str
-    bbox: Optional[Tuple[float, float, float, float]] = None
+    request_id: str
+    domain_bbox: Optional[Tuple[float, float, float, float]] = None
+    time_range: Dict[str, str]
+    crs: str
+    status: str
 
 
 class WindRoseData(BaseModel):
@@ -66,7 +74,11 @@ class WindRoseData(BaseModel):
     frequency: float
     velocity_range: Dict[str, float]
     source: str
-    bbox: Optional[Tuple[float, float, float, float]] = None
+    request_id: str
+    domain_bbox: Optional[Tuple[float, float, float, float]] = None
+    time_range: Dict[str, str]
+    crs: str
+    status: str
 
 
 def build_domain_seed(request: MeteoRequest) -> int:
@@ -85,8 +97,10 @@ async def get_meteo_summary(request: MeteoRequest):
     """Obtiene el resumen meteorológico para un año específico."""
     try:
         return MeteoSummary(**service.get_meteo_summary(request.year, request))
+    except DashboardDataError as exc:
+        raise HTTPException(status_code=exc.http_status, detail={"error_code": exc.error_code, "message": str(exc)}) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.post("/wind-timeseries", response_model=List[WindTimeseries])
@@ -94,9 +108,11 @@ async def get_wind_timeseries(request: MeteoRequest):
     """Obtiene las series temporales mensuales de viento."""
     try:
         result = service.get_wind_timeseries(request.year, request)
-        return [WindTimeseries(**item, source=result["source"], bbox=result["bbox"]) for item in result["items"]]
+        return [WindTimeseries(**item, source=result["source"], request_id=result["request_id"], domain_bbox=result["domain_bbox"], time_range=result["time_range"], crs=result["crs"], status=result["status"]) for item in result["items"]]
+    except DashboardDataError as exc:
+        raise HTTPException(status_code=exc.http_status, detail={"error_code": exc.error_code, "message": str(exc)}) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.post("/wind-rose", response_model=List[WindRoseData])
@@ -104,6 +120,8 @@ async def get_wind_rose(request: MeteoRequest):
     """Obtiene los datos de rosa de vientos (16 direcciones)."""
     try:
         result = service.get_wind_rose(request.year, request)
-        return [WindRoseData(**item, source=result["source"], bbox=result["bbox"]) for item in result["items"]]
+        return [WindRoseData(**item, source=result["source"], request_id=result["request_id"], domain_bbox=result["domain_bbox"], time_range=result["time_range"], crs=result["crs"], status=result["status"]) for item in result["items"]]
+    except DashboardDataError as exc:
+        raise HTTPException(status_code=exc.http_status, detail={"error_code": exc.error_code, "message": str(exc)}) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
