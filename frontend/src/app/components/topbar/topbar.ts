@@ -2,6 +2,7 @@ import { Component, EventEmitter, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
+import { environment } from '../../../environments/environment';
 
 export interface PipelineStatus {
   loading: boolean;
@@ -21,6 +22,7 @@ export class Topbar {
   casePath = '';
 
   private readonly baseCasesPath = 'C:\\Datos_TFG';
+  private readonly apiBaseUrl = environment.apiBaseUrl;
 
   @Output() caseChange = new EventEmitter<string>();
   @Output() pipelineStatusChange = new EventEmitter<PipelineStatus>();
@@ -64,7 +66,7 @@ export class Topbar {
   this.error = null;
   this.emitPipelineStatus();
 
-  this.http.post('http://127.0.0.1:8000/api/v1/case/import-folder', {
+  this.http.post(`${this.apiBaseUrl}/case/import-folder`, {
     input_path: this.casePath
   }).subscribe({
     next: (res) => {

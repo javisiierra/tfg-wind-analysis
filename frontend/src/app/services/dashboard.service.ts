@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 export interface MeteoSummary {
   year: number;
@@ -30,7 +31,7 @@ export interface WindRoseData {
   providedIn: 'root'
 })
 export class DashboardService {
-  private apiUrl = 'http://localhost:8000/api/v1';
+  private readonly apiBaseUrl = environment.apiBaseUrl;
 
   constructor(private http: HttpClient) {}
 
@@ -41,7 +42,7 @@ export class DashboardService {
    */
   getMeteoSummary(year: number): Observable<MeteoSummary> {
     return this.http.post<MeteoSummary>(
-      `${this.apiUrl}/dashboard/meteo-summary`,
+      `${this.apiBaseUrl}/dashboard/meteo-summary`,
       { year }
     );
   }
@@ -53,7 +54,7 @@ export class DashboardService {
    */
   getWindTimeseries(year: number): Observable<WindTimeseries[]> {
     return this.http.post<WindTimeseries[]>(
-      `${this.apiUrl}/dashboard/wind-timeseries`,
+      `${this.apiBaseUrl}/dashboard/wind-timeseries`,
       { year }
     );
   }
@@ -65,7 +66,7 @@ export class DashboardService {
    */
   getWindRose(year: number): Observable<WindRoseData[]> {
     return this.http.post<WindRoseData[]>(
-      `${this.apiUrl}/dashboard/wind-rose`,
+      `${this.apiBaseUrl}/dashboard/wind-rose`,
       { year }
     );
   }
