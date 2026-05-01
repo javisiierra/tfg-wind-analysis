@@ -10,9 +10,9 @@ export const routes: Routes = [
     path: '',
     component: AppLayoutComponent,
     children: [
-      { path: 'mapa', component: MapWrapperComponent },
-      { path: 'dashboard', component: DashboardComponent }
+      { path: 'mapa', component: MapWrapperComponent }
     ]
   },
+  { path: 'dashboard', component: DashboardComponent },
   { path: '**', redirectTo: '' }
 ];
