@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import logging
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,9 @@ import pandas as pd
 from shapely.geometry import shape
 
 from app.services.dashboard.era5_service import Era5Service
+
+
+logger = logging.getLogger(__name__)
 
 
 class DashboardDataError(Exception):
@@ -103,7 +107,7 @@ class WeatherDashboardService:
         raise DashboardDataError(
             "Provide one valid domain source (bbox, geometry, or case_path)",
             "MISSING_DOMAIN",
-            422,
+            400,
         )
 
     def _load_year_data(self, year: int, domain: Any | None = None) -> tuple[pd.DataFrame, dict[str, Any], dict[str, Any]]:
@@ -127,28 +131,29 @@ class WeatherDashboardService:
         except Exception as exc:
             detail = str(exc)
             lowered = detail.lower()
+            logger.exception("ERA5 fetch/read failed", extra={"year": year, "domain_source": resolved.get("source")})
             if "dominio.geojson" in lowered or "dominio.shp" in lowered or "dominio válido" in lowered:
                 raise DashboardDataError(
-                    "Domain file not found or invalid in case_path (expected SHP/dominio.geojson or SHP/dominio.shp)",
-                    "INVALID_CASE_DOMAIN",
-                    422,
+                    "No se pudo descargar o leer ERA5: el dominio del case_path es inválido o no existe (esperado SHP/dominio.geojson o SHP/dominio.shp).",
+                    "ERA5_DOWNLOAD_FAILED",
+                    500,
                 ) from exc
             if ".cdsapirc" in lowered or "missing/incomplete configuration file" in lowered:
                 raise DashboardDataError(
-                    "CDS credentials not found (~/.cdsapirc)",
-                    "CDS_CREDENTIALS_MISSING",
-                    503,
+                    "No se pudo descargar o leer ERA5: faltan credenciales CDS (~/.cdsapirc).",
+                    "ERA5_DOWNLOAD_FAILED",
+                    500,
                 ) from exc
             if "cdsapi" in lowered and "instala" in lowered:
                 raise DashboardDataError(
-                    "CDS client dependency missing (install cdsapi)",
-                    "CDS_CLIENT_MISSING",
+                    "No se pudo descargar o leer ERA5: falta la dependencia del cliente CDS (cdsapi).",
+                    "ERA5_DOWNLOAD_FAILED",
                     500,
                 ) from exc
             raise DashboardDataError(
-                "ERA5 fetch failed (network timeout or upstream error)",
-                "ERA5_UPSTREAM_ERROR",
-                502,
+                "No se pudo descargar o leer ERA5 por un error del proveedor o de red.",
+                "ERA5_DOWNLOAD_FAILED",
+                500,
             ) from exc
 
         if df.empty:
