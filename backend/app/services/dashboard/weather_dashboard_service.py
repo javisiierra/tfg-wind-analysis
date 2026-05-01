@@ -11,7 +11,7 @@ import geopandas as gpd
 import pandas as pd
 from shapely.geometry import box, shape
 
-from app.services.weather.era5_service import analyze_wind, download_era5_for_bbox_year, era5_cache_target_path, load_era5_dataset
+from app.services.weather.era5_service import analyze_wind, download_era5_for_bbox_year, load_era5_dataset
 
 
 logger = logging.getLogger(__name__)
@@ -161,7 +161,12 @@ class WeatherDashboardService:
             400,
         )
 
-    def _load_year_data(self, year: int, domain: Any | None = None) -> tuple[pd.DataFrame, dict[str, Any], dict[str, Any]]:
+    def _load_year_data(
+        self,
+        year: int,
+        domain: Any | None = None,
+        progress_cb=None,
+    ) -> tuple[pd.DataFrame, dict[str, Any], dict[str, Any]]:
         self._validate_year(year)
         resolved = self._resolve_domain_descriptor(domain)
         time_range = {"start": f"{year}-01-01", "end": f"{year}-12-31"}
@@ -176,8 +181,14 @@ class WeatherDashboardService:
 
         bbox = resolved["bbox"]
         try:
-            dataset_path = download_era5_for_bbox_year(bbox, year)
+            if progress_cb:
+                progress_cb(40, "Solicitud ERA5 enviada a Copernicus. Esperando procesamiento...")
+            dataset_path = download_era5_for_bbox_year(bbox, year, progress_cb=progress_cb)
+            if progress_cb:
+                progress_cb(80, "ERA5 descargado. Leyendo dataset...")
             df = load_era5_dataset(dataset_path)
+            if progress_cb:
+                progress_cb(90, "Calculando métricas meteorológicas...")
         except Exception as exc:
             detail = str(exc)
             lowered = detail.lower()
@@ -230,16 +241,7 @@ class WeatherDashboardService:
     def get_dashboard_bundle(self, year: int, domain: Any | None = None, progress_cb=None) -> dict[str, Any]:
         if progress_cb:
             progress_cb(30, "Comprobando caché ERA5...")
-        df, resolved, meta = self._load_year_data(year, domain)
-
-        if progress_cb:
-            cache_file = Path(era5_cache_target_path(resolved["bbox"], year))
-            if cache_file.exists() and cache_file.stat().st_size > 0:
-                progress_cb(45, "Usando datos ERA5 cacheados")
-            else:
-                progress_cb(45, "Descargando ERA5...")
-            progress_cb(70, "Leyendo dataset...")
-            progress_cb(85, "Calculando métricas...")
+        df, resolved, meta = self._load_year_data(year, domain, progress_cb=progress_cb)
 
         metrics = analyze_wind(df)
         return {

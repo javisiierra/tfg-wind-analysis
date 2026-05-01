@@ -5,7 +5,8 @@ import tempfile
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from threading import Event, Thread
+from typing import Any, Callable
 
 import numpy as np
 import pandas as pd
@@ -75,7 +76,11 @@ def era5_cache_target_path(bbox: list[float], year: int) -> str:
     return os.path.join(tempfile.gettempdir(), f"era5_{year}_{min_lon}_{min_lat}_{max_lon}_{max_lat}.nc")
 
 
-def download_era5_for_bbox_year(bbox: list[float], year: int) -> str:
+def download_era5_for_bbox_year(
+    bbox: list[float],
+    year: int,
+    progress_cb: Callable[[int, str], None] | None = None,
+) -> str:
     """Download ERA5 hourly u10/v10 for a bbox and year and return NetCDF path.
 
     Preconditions:
@@ -95,21 +100,48 @@ def download_era5_for_bbox_year(bbox: list[float], year: int) -> str:
     target = era5_cache_target_path(bbox, year)
     days = [f"{d:02d}" for d in range(1, 32)]
     times = [f"{h:02d}:00" for h in range(24)]
+    stop_progress = Event()
 
-    cdsapi.Client().retrieve(
-        "reanalysis-era5-single-levels",
-        {
-            "product_type": "reanalysis",
-            "variable": ["10m_u_component_of_wind", "10m_v_component_of_wind"],
-            "year": str(year),
-            "month": [f"{m:02d}" for m in range(1, 13)],
-            "day": days,
-            "time": times,
-            "area": [max_lat, min_lon, min_lat, max_lon],
-            "format": "netcdf",
-        },
-        target,
-    )
+    def _estimated_progress_worker() -> None:
+        stages = [
+            (45, "Solicitud ERA5 aceptada por Copernicus..."),
+            (55, "Copernicus está procesando los datos..."),
+            (65, "Descargando archivo ERA5..."),
+            (75, "Finalizando descarga ERA5..."),
+        ]
+        for progress, message in stages:
+            if stop_progress.wait(10):
+                return
+            if progress_cb:
+                progress_cb(progress, message)
+        while not stop_progress.wait(10):
+            if progress_cb:
+                progress_cb(80, "Finalizando descarga ERA5...")
+
+    worker: Thread | None = None
+    if progress_cb:
+        worker = Thread(target=_estimated_progress_worker, daemon=True)
+        worker.start()
+
+    try:
+        cdsapi.Client().retrieve(
+            "reanalysis-era5-single-levels",
+            {
+                "product_type": "reanalysis",
+                "variable": ["10m_u_component_of_wind", "10m_v_component_of_wind"],
+                "year": str(year),
+                "month": [f"{m:02d}" for m in range(1, 13)],
+                "day": days,
+                "time": times,
+                "area": [max_lat, min_lon, min_lat, max_lon],
+                "format": "netcdf",
+            },
+            target,
+        )
+    finally:
+        stop_progress.set()
+        if worker is not None:
+            worker.join(timeout=1)
     return target
 
 
