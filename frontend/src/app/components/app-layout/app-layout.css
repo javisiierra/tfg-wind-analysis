@@ -1,0 +1,99 @@
+:host {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #020617;
+  color: #0f172a;
+}
+
+.app-shell {
+  width: 100vw;
+  height: 100vh;
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  grid-template-rows: 56px minmax(0, 1fr) 68px;
+  grid-template-areas:
+    "header header"
+    "sidebar main"
+    "bottom bottom";
+}
+
+.app-shell:has(.app-sidebar[style*="display: none"]),
+.app-shell:not(:has(.app-sidebar)) {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "header"
+    "main"
+    "bottom";
+}
+
+.app-header {
+  grid-area: header;
+  min-width: 0;
+  background: #0f172a;
+  border-bottom: 1px solid #1e293b;
+  z-index: 20;
+}
+
+.app-sidebar {
+  grid-area: sidebar;
+  min-height: 0;
+  overflow: hidden;
+  background: #f8fafc;
+  border-right: 1px solid #cbd5e1;
+  z-index: 10;
+}
+
+.app-content-area {
+  grid-area: main;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  background: #dbeafe;
+  overflow: auto;
+}
+
+.app-main-container {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.app-bottom-panel {
+  grid-area: bottom;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px 10px;
+  background: #020617;
+  color: #e2e8f0;
+  border-top: 1px solid #1e293b;
+  overflow: hidden;
+}
+
+.panel-section {
+  min-width: 0;
+  padding: 7px 10px;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 9px;
+}
+
+.panel-label {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 10px;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.panel-section strong {
+  display: block;
+  font-size: 12px;
+  color: #f8fafc;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

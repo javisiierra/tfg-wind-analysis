@@ -1,0 +1,47 @@
+<div class="app-shell">
+  <header class="app-header">
+    <app-topbar
+      (caseChange)="onCasePathChange($event)"
+      (pipelineStatusChange)="onPipelineStatusChange($event)">
+    </app-topbar>
+  </header>
+
+  <aside class="app-sidebar" *ngIf="showSidebar">
+    <app-sidebar
+      [casePath]="casePath"
+      [drawnGeometries]="drawnGeometries"
+      (layerSelected)="onLayerSelected($event)"
+      (drawModeChange)="onDrawModeChange($event)"
+      (clearDrawing)="onClearDrawing()"
+      (caseCreated)="onCaseCreated($event)">
+    </app-sidebar>
+  </aside>
+
+  <main class="app-content-area">
+    <div class="app-main-container">
+      <router-outlet></router-outlet>
+    </div>
+  </main>
+
+  <section class="app-bottom-panel">
+    <div class="panel-section">
+      <span class="panel-label">Estado</span>
+      <strong>{{ pipelineStatus.statusText }}</strong>
+    </div>
+
+    <div class="panel-section">
+      <span class="panel-label">Caso activo</span>
+      <strong>{{ casePath || 'Sin caso seleccionado' }}</strong>
+    </div>
+
+    <div class="panel-section">
+      <span class="panel-label">Capa activa</span>
+      <strong>{{ selectedLayer || 'Ninguna' }}</strong>
+    </div>
+
+    <div class="panel-section">
+      <span class="panel-label">Apoyos dibujados</span>
+      <strong>{{ drawnGeometries.length ? drawnGeometries.length + ' apoyos' : 'No definido' }}</strong>
+    </div>
+  </section>
+</div>

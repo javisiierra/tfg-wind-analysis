@@ -17,7 +17,7 @@ import VectorSource from 'ol/source/Vector';
 import GeoJSONFormat from 'ol/format/GeoJSON';
 import { fromLonLat } from 'ol/proj';
 import Draw from 'ol/interaction/Draw';
-import { DrawMode } from '../../app';
+import { DrawMode } from '../../services/map-context.service';
 
 import LineString from 'ol/geom/LineString';
 import Point from 'ol/geom/Point';

@@ -1,0 +1,87 @@
+<div class="dashboard-container">
+  <header class="dashboard-header">
+    <h1>Dashboard Meteorológico</h1>
+    <p>Análisis histórico de datos de viento por dominio geográfico</p>
+  </header>
+
+  <section class="dashboard-controls">
+    <div class="control-group">
+      <label for="year-select">Seleccionar Año:</label>
+      <select id="year-select" [(ngModel)]="selectedYear" class="year-selector">
+        <option *ngFor="let year of years" [value]="year">{{ year }}</option>
+      </select>
+    </div>
+
+    <button
+      class="btn btn-analyze"
+      [disabled]="isLoading || !selectedYear"
+      (click)="onAnalysisButtonClick()">
+      <span *ngIf="!isLoading">Lanzar Análisis</span>
+      <span *ngIf="isLoading">Analizando...</span>
+    </button>
+
+    <div *ngIf="error" class="error-message">
+      {{ error }}
+    </div>
+  </section>
+
+  <div *ngIf="meteoSummary" class="dashboard-content">
+    <section class="summary-cards">
+      <article class="card">
+        <h3>Velocidad Media</h3>
+        <p class="card-value">{{ meteoSummary.avg_velocity | number: '1.2-2' }}</p>
+        <span class="card-unit">m/s</span>
+      </article>
+
+      <article class="card">
+        <h3>Velocidad Máxima</h3>
+        <p class="card-value">{{ meteoSummary.max_velocity | number: '1.2-2' }}</p>
+        <span class="card-unit">m/s</span>
+      </article>
+
+      <article class="card">
+        <h3>Dirección Dominante</h3>
+        <p class="card-value">{{ getDirectionLabel(meteoSummary.dominant_direction) }}</p>
+        <span class="card-unit">{{ meteoSummary.dominant_direction | number: '1.0-0' }}°</span>
+      </article>
+
+      <article class="card">
+        <h3>Mes Más Ventoso</h3>
+        <p class="card-value">
+          {{ meteoSummary.windiest_month | number: '1.0-0' }}
+        </p>
+        <span class="card-unit" *ngIf="meteoSummary.windiest_month > 0">
+          {{ 'Mes ' + (meteoSummary.windiest_month | number: '1.0-0') }}
+        </span>
+      </article>
+
+      <article class="card" [ngClass]="getViabilityClass(meteoSummary.viability_index)">
+        <h3>Viabilidad</h3>
+        <p class="card-value">{{ getViabilityStatus(meteoSummary.viability_index) }}</p>
+        <span class="card-unit">{{ (meteoSummary.viability_index * 100) | number: '1.0-0' }}%</span>
+      </article>
+
+      <article class="card">
+        <h3>Puntos de Datos</h3>
+        <p class="card-value">{{ meteoSummary.data_points | number: '1.0-0' }}</p>
+        <span class="card-unit">registros</span>
+      </article>
+    </section>
+
+    <section class="charts-section">
+      <div class="chart-container">
+        <h2>Análisis Mensual de Viento</h2>
+        <div id="monthly-wind-chart" class="chart"></div>
+      </div>
+
+      <div class="chart-container">
+        <h2>Rosa de Vientos</h2>
+        <div id="wind-rose-chart" class="chart"></div>
+      </div>
+    </section>
+  </div>
+
+  <div *ngIf="!meteoSummary && !isLoading" class="no-data">
+    <p>Selecciona un año y haz clic en "Lanzar Análisis" para ver los datos.</p>
+  </div>
+</div>
