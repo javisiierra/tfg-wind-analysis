@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, NgZone, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject, Subscription, interval } from 'rxjs';
@@ -62,7 +62,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   constructor(
     private dashboardService: DashboardService,
-    private mapContextService: MapContextService
+    private mapContextService: MapContextService,
+    private zone: NgZone
   ) {
     this.initializeYears();
   }
@@ -168,7 +169,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.pollingSubscription = interval(2500).pipe(takeUntil(this.destroy$)).subscribe(() => {
       if (!this.activeJobId) return;
       this.dashboardService.getMeteoSummaryStatus(jobId).subscribe({
-        next: (response) => this.handleJobStatus(response),
+        next: (response) => {
+          console.log('JOB STATUS RESPONSE', response);
+          this.handleJobStatus(response);
+        },
         error: () => {
           this.error = "No se pudo consultar el estado del análisis.";
           this.isLoading = false;
@@ -177,7 +181,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
         }
       });
     });
-    this.dashboardService.getMeteoSummaryStatus(jobId).subscribe((status) => this.handleJobStatus(status));
+    this.dashboardService.getMeteoSummaryStatus(jobId).subscribe((response) => {
+      console.log('JOB STATUS RESPONSE', response);
+      this.handleJobStatus(response);
+    });
   }
 
   private stopPolling(): void {
@@ -186,12 +193,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private handleJobStatus(response: DashboardAsyncStatusResponse): void {
-    console.log('JOB STATUS RESPONSE', response);
-    this.jobStatus = response.status;
-    this.progress = response.progress ?? 0;
-    this.progressMessage = response.message ?? '';
-    this.result = response.result ?? null;
-    this.error = response.error ?? null;
+    this.zone.run(() => {
+      this.jobStatus = response.status;
+      this.progress = Number(response.progress ?? 0);
+      this.progressMessage = response.message ?? '';
+      this.result = response.result ?? null;
+      this.error = response.error ?? null;
+    });
 
     if (response.status === "finished") {
       this.activeJobId = null;
