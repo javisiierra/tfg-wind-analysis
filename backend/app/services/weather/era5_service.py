@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import os
 import tempfile
+import logging
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -10,6 +12,33 @@ import pandas as pd
 import xarray as xr
 
 from app.services.wind.utils import uv_to_ws_wd
+
+logger = logging.getLogger(__name__)
+
+_MISSING_CREDENTIALS_MESSAGE = (
+    "No se encontraron credenciales de Copernicus CDS API. "
+    "Configura CDSAPI_URL y CDSAPI_KEY o el archivo ~/.cdsapirc."
+)
+
+
+def _resolve_cds_credentials_source() -> str:
+    has_env_credentials = bool(os.getenv("CDSAPI_URL") and os.getenv("CDSAPI_KEY"))
+    home_credentials_path = Path.home() / ".cdsapirc"
+    backend_credentials_path = Path(__file__).resolve().parents[3] / ".cdsapirc"
+
+    if has_env_credentials:
+        logger.info("ERA5 credentials found using method=env")
+        return "env"
+    if home_credentials_path.exists():
+        logger.info("ERA5 credentials found using method=user_home")
+        return "user_home"
+    if backend_credentials_path.exists():
+        logger.info("ERA5 credentials found using method=backend_file")
+        os.environ.setdefault("CDSAPI_RC", str(backend_credentials_path))
+        return "backend_file"
+
+    logger.error("ERA5 credentials not found using methods=env,user_home,backend_file")
+    raise RuntimeError(_MISSING_CREDENTIALS_MESSAGE)
 
 
 def get_bbox_from_domain(domain_geojson: dict[str, Any]) -> list[float]:
@@ -51,8 +80,7 @@ def download_era5_for_bbox_year(bbox: list[float], year: int) -> str:
         raise ValueError("bbox must have 4 elements: [minLon,minLat,maxLon,maxLat]")
     min_lon, min_lat, max_lon, max_lat = bbox
 
-    if not (os.getenv("CDSAPI_URL") and os.getenv("CDSAPI_KEY")) and not os.path.exists(os.path.expanduser("~/.cdsapirc")):
-        raise RuntimeError("CDS API credentials/configuration not found. Caller should activate mock data.")
+    _resolve_cds_credentials_source()
 
     try:
         import cdsapi
