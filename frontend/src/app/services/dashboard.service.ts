@@ -51,7 +51,7 @@ export class DashboardService {
   getMeteoSummary(payload: MeteoRequestPayload): Observable<MeteoSummary> {
     return this.http.post<MeteoSummary>(
       `${this.apiBaseUrl}/dashboard/meteo-summary`,
-      { year }
+      payload
     );
   }
 
@@ -63,7 +63,7 @@ export class DashboardService {
   getWindTimeseries(payload: MeteoRequestPayload): Observable<WindTimeseries[]> {
     return this.http.post<WindTimeseries[]>(
       `${this.apiBaseUrl}/dashboard/wind-timeseries`,
-      { year }
+      payload
     );
   }
 
@@ -75,7 +75,7 @@ export class DashboardService {
   getWindRose(payload: MeteoRequestPayload): Observable<WindRoseData[]> {
     return this.http.post<WindRoseData[]>(
       `${this.apiBaseUrl}/dashboard/wind-rose`,
-      { year }
+      payload
     );
   }
 }
