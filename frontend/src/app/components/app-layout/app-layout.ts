@@ -1,12 +1,12 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, RouterOutlet, NavigationEnd } from '@angular/router';
+import { RouterOutlet } from '@angular/router';
 import { Topbar } from '../topbar/topbar';
 import { Sidebar } from '../sidebar/sidebar';
 import { MapContextService, DrawMode } from '../../services/map-context.service';
 import { PipelineStatus } from '../topbar/topbar';
 import { Subject } from 'rxjs';
-import { takeUntil, filter } from 'rxjs/operators';
+import { takeUntil } from 'rxjs/operators';
 
 @Component({
   selector: 'app-layout',
@@ -21,7 +21,6 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
   drawMode: DrawMode = 'none';
   drawnGeometries: Record<string, any>[] = [];
   clearDrawToken = 0;
-  showSidebar = true;
 
   pipelineStatus: PipelineStatus = {
     loading: false,
@@ -32,18 +31,9 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
 
   private destroy$ = new Subject<void>();
 
-  constructor(private mapContextService: MapContextService, private router: Router) {}
+  constructor(private mapContextService: MapContextService) {}
 
   ngOnInit(): void {
-    // Detectar ruta actual y ocultar sidebar en dashboard
-    this.checkRoute();
-    this.router.events
-      .pipe(
-        filter(event => event instanceof NavigationEnd),
-        takeUntil(this.destroy$)
-      )
-      .subscribe(() => this.checkRoute());
-
     // Subscribe to context changes
     this.mapContextService.casePath$
       .pipe(takeUntil(this.destroy$))
@@ -106,7 +96,4 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
     this.pipelineStatus = status;
   }
 
-  private checkRoute(): void {
-    this.showSidebar = !this.router.url.includes('/dashboard');
-  }
 }
