@@ -40,7 +40,15 @@ export interface DashboardAsyncStartResponse { job_id: string; status: 'queued';
 
 export interface DashboardAsyncStatusResponse {
   job_id: string;
-  status: 'queued' | 'running' | 'finished' | 'failed';
+  status:
+    | 'queued'
+    | 'running'
+    | 'finished'
+    | 'successful'
+    | 'completed'
+    | 'success'
+    | 'failed'
+    | 'error';
   progress: number;
   message: string;
   result: {
@@ -59,6 +67,15 @@ export interface CaseStatusResponse {
   has_apoyos: boolean;
   has_vanos: boolean;
   ready_for_windninja: boolean;
+}
+
+export interface GenerateDomainFromSupportsResponse {
+  ok?: boolean;
+  status?: string;
+  message?: string;
+  domain_path?: string;
+  geojson_path?: string;
+  [key: string]: unknown;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -83,5 +100,11 @@ export class DashboardService {
   }
   getCaseStatus(casePath: string): Observable<CaseStatusResponse> {
     return this.http.post<CaseStatusResponse>(`${this.apiBaseUrl}/case/status`, { case_path: casePath });
+  }
+  generateDomainFromSupports(casePath: string): Observable<GenerateDomainFromSupportsResponse> {
+    return this.http.post<GenerateDomainFromSupportsResponse>(
+      `${this.apiBaseUrl}/domain/generate-from-supports`,
+      { case_path: casePath }
+    );
   }
 }

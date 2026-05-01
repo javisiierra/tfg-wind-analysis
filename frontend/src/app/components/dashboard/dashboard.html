@@ -11,6 +11,7 @@
         <option *ngFor="let year of years" [value]="year">{{ year }}</option>
       </select>
     </div>
+
     <div class="control-group">
       <label for="case-path-selected">Caso activo (case_path):</label>
       <input
@@ -29,16 +30,37 @@
 
     <button
       class="btn btn-analyze"
-      [disabled]="isLoading || !selectedYear"
+      [disabled]="isLoading || isGeneratingDomain || !selectedYear"
       (click)="onAnalysisButtonClick()">
       <span *ngIf="!isLoading">Lanzar Análisis</span>
       <span *ngIf="isLoading">Analizando...</span>
     </button>
 
-    <p class="hint-message">Selecciona la carpeta del caso con el botón <strong>"Seleccionar carpeta"</strong> en la barra superior (Mapa).</p>
+    <p class="hint-message">
+      Selecciona la carpeta del caso con el botón
+      <strong>"Seleccionar carpeta"</strong>.
+    </p>
 
     <div *ngIf="error" class="error-message">
       {{ error }}
+    </div>
+
+    <div *ngIf="canGenerateDomain" class="domain-actions">
+      <p>
+        El caso seleccionado no tiene dominio. Puedes generarlo automáticamente desde los apoyos.
+      </p>
+
+      <button
+        class="btn btn-generate-domain"
+        [disabled]="isGeneratingDomain"
+        (click)="generateDomainFromDashboard()">
+        <span *ngIf="!isGeneratingDomain">Generar dominio desde apoyos</span>
+        <span *ngIf="isGeneratingDomain">Generando dominio...</span>
+      </button>
+    </div>
+
+    <div *ngIf="domainGenerationMessage" class="success-message">
+      {{ domainGenerationMessage }}
     </div>
 
     <div *ngIf="isLoading" class="progress-panel">
@@ -96,12 +118,12 @@
     <section class="charts-section">
       <div class="chart-container">
         <h2>Análisis Mensual de Viento</h2>
-        <div id="monthly-wind-chart" class="chart"></div>
+        <canvas id="monthly-wind-chart" class="chart"></canvas>
       </div>
 
       <div class="chart-container">
         <h2>Rosa de Vientos</h2>
-        <div id="wind-rose-chart" class="chart"></div>
+        <canvas id="wind-rose-chart" class="chart"></canvas>
       </div>
     </section>
   </div>
