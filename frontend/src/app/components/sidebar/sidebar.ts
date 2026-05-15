@@ -27,6 +27,7 @@ export class Sidebar {
 
   result: any = null;
   error: any = null;
+  userMessage = '';
   loading = false;
   currentAction = '';
 
@@ -66,6 +67,7 @@ export class Sidebar {
     this.loading = true;
     this.result = null;
     this.error = null;
+    this.userMessage = '';
     this.currentAction = 'Guardar apoyos';
 
     try {
@@ -136,7 +138,7 @@ export class Sidebar {
   }
 
   runWorstSupports() {
-    this.callAnalysis('/worst-supports', 'Peores apoyos');
+    this.callAnalysis('/worst-supports', 'Vanos críticos');
   }
 
   showApoyos() {
@@ -159,6 +161,7 @@ export class Sidebar {
     this.loading = true;
     this.result = null;
     this.error = null;
+    this.userMessage = '';
     this.currentAction = action;
 
     this.http.post(`http://127.0.0.1:8000/api/v1/pipeline${endpoint}`, {
@@ -166,6 +169,7 @@ export class Sidebar {
     }).subscribe({
       next: (res) => {
         this.result = res;
+        this.userMessage = this.buildPipelineUserMessage(endpoint, res);
         this.loading = false;
         this.actionCompletedOk.emit(this.casePath);
       },
@@ -180,6 +184,7 @@ export class Sidebar {
     this.loading = true;
     this.result = null;
     this.error = null;
+    this.userMessage = '';
     this.currentAction = action;
 
     this.http.post(`http://127.0.0.1:8000/api/v1/domain${endpoint}`, {
@@ -205,6 +210,7 @@ export class Sidebar {
     this.loading = true;
     this.result = null;
     this.error = null;
+    this.userMessage = '';
     this.currentAction = action;
 
     this.http.post(`http://127.0.0.1:8000/api/v1/supports${endpoint}`, {
@@ -227,6 +233,7 @@ export class Sidebar {
     this.loading = true;
     this.result = null;
     this.error = null;
+    this.userMessage = '';
     this.currentAction = action;
 
     this.http.post(`http://127.0.0.1:8000/api/v1/analysis${endpoint}`, {
@@ -242,5 +249,21 @@ export class Sidebar {
         this.loading = false;
       }
     });
+  }
+
+  private buildPipelineUserMessage(endpoint: string, res: any): string {
+    if (endpoint !== '/run-windninja') {
+      return '';
+    }
+
+    if (res?.rename_success && res?.worst_supports_success) {
+      return 'WindNinja finalizado. Salidas renombradas y vanos críticos calculados.';
+    }
+
+    if (res?.postprocess_warnings?.length || res?.rename_warning || res?.worst_supports_warning) {
+      return 'WindNinja finalizado, pero hubo avisos en el postproceso.';
+    }
+
+    return 'WindNinja finalizado.';
   }
 }

@@ -139,6 +139,7 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
     }
 
     this.refreshActiveCaseStatus();
+    this.mapContextService.refreshSelectedLayer();
   }
 
   onPipelineStatusChange(status: PipelineStatus): void {

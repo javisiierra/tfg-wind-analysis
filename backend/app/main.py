@@ -36,7 +36,7 @@ app = FastAPI(
         },
         {
             "name": "Análisis",
-            "description": "Procesos de postprocesado y cálculo de peores apoyos.",
+            "description": "Procesos de postprocesado y cálculo de vanos críticos.",
         },
     ],
 )

@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import traceback
 from pathlib import Path
@@ -22,6 +23,7 @@ from app.scripts.run_local_pipeline import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 BASE_ROOT = normalize_case_path(Path(os.getenv("HOST_CASES_ROOT", r"C:\Datos_TFG")))
 
@@ -97,6 +99,108 @@ def get_or_create_case_structure(case_name: str) -> dict[str, Path]:
     return create_case_structure(BASE_ROOT, case_name)
 
 
+def _first_property(props: dict[str, Any], names: list[str]) -> Any:
+    for name in names:
+        value = props.get(name)
+        if value is not None and value != "":
+            return value
+    return None
+
+
+def _support_label_from_value(value: Any) -> str | None:
+    if value is None or value == "":
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        if text.replace(".", "", 1).isdigit():
+            return f"AP-{int(float(text))}"
+    except ValueError:
+        pass
+    return text
+
+
+def _enrich_worst_supports_geojson(geojson: dict[str, Any]) -> dict[str, Any]:
+    enriched_count = 0
+
+    for feature in geojson.get("features", []):
+        props = feature.get("properties") or {}
+        feature["properties"] = props
+
+        vperp_min = _first_property(props, ["vperp_min", "v_perp", "critical_metric"])
+        w_speed = _first_property(props, ["w_speed", "wind_speed"])
+        w_dir = _first_property(props, ["w_dir", "wind_dir", "wind_direction"])
+        alpha = _first_property(props, ["alpha", "alpha_eff", "angle_relative"])
+        from_support = _first_property(props, ["from_support", "from_supp", "from_suppo", "from_ap"])
+        to_support = _first_property(props, ["to_support", "to_supp", "to_ap"])
+        from_order = _first_property(props, ["from_order", "from_ord", "from_idx"])
+        to_order = _first_property(props, ["to_order", "to_ord", "to_idx"])
+
+        from_support = _support_label_from_value(from_support) or _support_label_from_value(from_order)
+        to_support = _support_label_from_value(to_support) or _support_label_from_value(to_order)
+        span_label = _first_property(props, ["span_label", "span_labe"])
+        if span_label is None and from_support is not None and to_support is not None:
+            span_label = f"{from_support} -> {to_support}"
+
+        if vperp_min is not None:
+            props.setdefault("critical_metric", vperp_min)
+            props.setdefault("critical_metric_unit", "m/s")
+            props.setdefault(
+                "critical_reason",
+                "Menor componente perpendicular sobre el vano entre escenarios WindNinja",
+            )
+            enriched_count += 1
+
+        if w_speed is not None:
+            props.setdefault("wind_speed", w_speed)
+            props.setdefault("wind_speed_unit", "m/s")
+
+        if w_dir is not None:
+            props.setdefault("wind_direction", w_dir)
+
+        if alpha is not None:
+            props.setdefault("angle_relative", alpha)
+            props.setdefault("angle_relative_unit", "deg")
+
+        if from_support is not None:
+            props.setdefault("from_support", from_support)
+            props.setdefault("from_support_id", from_support)
+
+        if to_support is not None:
+            props.setdefault("to_support", to_support)
+            props.setdefault("to_support_id", to_support)
+
+        if from_order is not None:
+            props.setdefault("from_order", from_order)
+
+        if to_order is not None:
+            props.setdefault("to_order", to_order)
+
+        if span_label is not None:
+            props.setdefault("span_label", span_label)
+
+    logger.info(
+        "worst_supports GeoJSON enriched",
+        extra={
+            "features": len(geojson.get("features", [])),
+            "enriched_features": enriched_count,
+            "aliases": [
+                "critical_metric",
+                "critical_metric_unit",
+                "critical_reason",
+                "wind_speed",
+                "wind_speed_unit",
+                "wind_direction",
+                "angle_relative",
+                "angle_relative_unit",
+            ],
+        },
+    )
+
+    return geojson
+
+
 def shapefile_to_geojson_response(shp_path: Path, layer_name: str):
     if not shp_path.exists():
         raise HTTPException(
@@ -117,8 +221,12 @@ def shapefile_to_geojson_response(shp_path: Path, layer_name: str):
             gdf = gdf.set_crs(epsg=25830)
 
         gdf = gdf.to_crs(epsg=4326)
+        geojson = json.loads(gdf.to_json())
 
-        return JSONResponse(content=json.loads(gdf.to_json()))
+        if layer_name == "worst_supports":
+            geojson = _enrich_worst_supports_geojson(geojson)
+
+        return JSONResponse(content=geojson)
 
     except HTTPException:
         raise
@@ -950,6 +1058,27 @@ def run_base_pipeline(request: PipelineRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+def _run_rename_for_cfg(cfg) -> dict[str, Any]:
+    from app.scripts.run_local_pipeline import run_rename_stage
+
+    result = run_rename_stage(cfg, apply=True)
+
+    return {
+        "status": "ok",
+        "apply": result.get("apply"),
+        "summary": str(result.get("summary_txt_path")),
+        "plan": str(result.get("plan_csv_path")),
+        "diagnostics": str(result.get("diag_csv_path")),
+    }
+
+
+def _run_worst_supports_for_cfg(cfg, top_n: int = 4) -> dict[str, Any]:
+    from app.services.analysis.worst_supports_service import compute_worst_supports
+
+    return compute_worst_supports(cfg, top_n=top_n)
+
+
 @router.post(
     "/pipeline/run-windninja",
     tags=["Pipeline"],
@@ -976,6 +1105,43 @@ def run_windninja_api(request: PipelineRequest):
 
         result = run_windninja_stage(cfg)
 
+        returncode = result.get("returncode")
+        if returncode not in (0, None):
+            raise RuntimeError(f"WindNinja terminó con returncode={returncode}")
+
+        logger.info("[run-windninja] WindNinja finished successfully")
+
+        postprocess_warnings: list[str] = []
+        rename_result: dict[str, Any] | None = None
+        worst_supports_result: dict[str, Any] | None = None
+        rename_success = False
+        worst_supports_success = False
+        rename_warning = None
+        worst_supports_warning = None
+
+        try:
+            logger.info("[run-windninja] Starting automatic rename")
+            rename_result = _run_rename_for_cfg(cfg)
+            rename_success = True
+            logger.info("[run-windninja] Rename completed")
+        except Exception as exc:
+            rename_warning = f"WindNinja finalizó, pero falló el postproceso rename: {exc}"
+            postprocess_warnings.append(rename_warning)
+            logger.warning("[run-windninja] Rename failed: %s", exc)
+
+        if rename_success:
+            try:
+                logger.info("[run-windninja] Starting automatic worst-supports analysis top_n=4")
+                worst_supports_result = _run_worst_supports_for_cfg(cfg, top_n=4)
+                worst_supports_success = True
+                logger.info("[run-windninja] Worst-supports completed")
+            except Exception as exc:
+                worst_supports_warning = (
+                    f"WindNinja y rename finalizaron, pero falló el análisis de vanos críticos: {exc}"
+                )
+                postprocess_warnings.append(worst_supports_warning)
+                logger.warning("[run-windninja] Worst-supports failed: %s", exc)
+
         return {
             "status": "ok",
             "case_path": request.case_path,
@@ -985,7 +1151,16 @@ def run_windninja_api(request: PipelineRequest):
             "stderr_tail": str(result.get("stderr_tail_txt_path")),
             "new_files_txt": str(result.get("new_files_txt_path")),
             "n_new_files": len(result.get("new_files", [])),
-            "returncode": result.get("returncode"),
+            "returncode": returncode,
+            "windninja_success": True,
+            "rename_success": rename_success,
+            "rename_warning": rename_warning,
+            "rename": rename_result,
+            "worst_supports_success": worst_supports_success,
+            "worst_supports_count": 4 if worst_supports_success else 0,
+            "worst_supports_warning": worst_supports_warning,
+            "worst_supports": worst_supports_result,
+            "postprocess_warnings": postprocess_warnings,
         }
 
     except HTTPException:
@@ -1006,17 +1181,9 @@ def run_rename_api(request: PipelineRequest):
     cfg = load_cfg_from_case_or_raise(request.case_path)
 
     try:
-        from app.scripts.run_local_pipeline import run_rename_stage
-
-        result = run_rename_stage(cfg, apply=True)
-
         return {
-            "status": "ok",
             "case_path": request.case_path,
-            "apply": result.get("apply"),
-            "summary": str(result.get("summary_txt_path")),
-            "plan": str(result.get("plan_csv_path")),
-            "diagnostics": str(result.get("diag_csv_path")),
+            **_run_rename_for_cfg(cfg),
         }
 
     except HTTPException:
@@ -1189,14 +1356,14 @@ def get_dominio_layer(request: PipelineRequest):
 @router.post(
     "/layers/worst-supports",
     tags=["Capas"],
-    summary="Obtener peores apoyos",
-    description="Devuelve la capa de los apoyos más críticos.",
+    summary="Obtener vanos críticos",
+    description="Devuelve la capa de los vanos/tramos más críticos.",
 )
 def get_worst_supports_layer(request: PipelineRequest):
     cfg = load_cfg_from_case_or_raise(request.case_path)
 
     if cfg.out_v_perp_min_shp is None:
-        raise HTTPException(status_code=404, detail="No existe ruta configurada para peores apoyos.")
+        raise HTTPException(status_code=404, detail="No existe ruta configurada para vanos críticos.")
 
     return shapefile_to_geojson_response(Path(cfg.out_v_perp_min_shp), "worst_supports")
 
@@ -1208,16 +1375,14 @@ def get_worst_supports_layer(request: PipelineRequest):
 @router.post(
     "/analysis/worst-supports",
     tags=["Análisis"],
-    summary="Calcular peores apoyos",
-    description="Calcula los N apoyos más críticos según los resultados.",
+    summary="Calcular vanos críticos",
+    description="Calcula los N vanos/tramos más críticos según los resultados.",
 )
 def worst_supports_api(request: PipelineRequest, top_n: int = 4):
     cfg = load_cfg_from_case_or_raise(request.case_path)
 
     try:
-        from app.services.analysis.worst_supports_service import compute_worst_supports
-
-        result = compute_worst_supports(cfg, top_n=top_n)
+        result = _run_worst_supports_for_cfg(cfg, top_n=top_n)
 
         return {
             "status": "ok",
@@ -1233,7 +1398,7 @@ def worst_supports_api(request: PipelineRequest, top_n: int = 4):
         raise HTTPException(
             status_code=500,
             detail={
-                "message": f"Error calculando los peores apoyos/vanos: {e}",
+                "message": f"Error calculando los vanos críticos: {e}",
                 "traceback": traceback.format_exc(),
             },
         )

@@ -87,6 +87,47 @@ def test_controlled_error_invalid_parameters(client):
     assert response.status_code == 422
 
 
+def test_worst_supports_geojson_enrichment_keeps_existing_metrics():
+    if pipeline is None:
+        pytest.skip("dependencias de integracion no instaladas en el entorno")
+
+    geojson = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {
+                    "vperp_min": 1.25,
+                    "w_speed": 8.5,
+                    "w_dir": 250.74085312139727,
+                    "alpha": 12.75,
+                    "from_ap": "AP-5",
+                    "to_ap": "AP-6",
+                },
+                "geometry": {"type": "Point", "coordinates": [-5.8, 43.3]},
+            }
+        ],
+    }
+
+    enriched = pipeline._enrich_worst_supports_geojson(geojson)
+    props = enriched["features"][0]["properties"]
+
+    assert props["vperp_min"] == 1.25
+    assert props["w_speed"] == 8.5
+    assert props["alpha"] == 12.75
+    assert props["critical_metric"] == 1.25
+    assert props["critical_metric_unit"] == "m/s"
+    assert props["critical_reason"] == "Menor componente perpendicular sobre el vano entre escenarios WindNinja"
+    assert props["wind_speed"] == 8.5
+    assert props["wind_speed_unit"] == "m/s"
+    assert props["wind_direction"] == 250.74085312139727
+    assert props["angle_relative"] == 12.75
+    assert props["angle_relative_unit"] == "deg"
+    assert props["from_support"] == "AP-5"
+    assert props["to_support"] == "AP-6"
+    assert props["span_label"] == "AP-5 -> AP-6"
+
+
 def test_run_preparation_does_not_use_legacy_pipeline_or_towers(client, monkeypatch, tmp_path):
     case_path = tmp_path / "case_prep"
     case_path.mkdir(parents=True)
@@ -128,3 +169,141 @@ def test_run_preparation_does_not_use_legacy_pipeline_or_towers(client, monkeypa
     assert called["run_geometry_and_dem"] == 1
     assert called["run_towers"] == 0
     assert called["run_base"] == 0
+
+
+def _windninja_cfg(tmp_path: Path):
+    dem = tmp_path / "MDT_WN" / "mdt.tif"
+    dem.parent.mkdir(parents=True)
+    dem.touch()
+    weather = tmp_path / "Weather_Input_Data" / "WN_PointInit_Path.csv"
+    weather.parent.mkdir(parents=True)
+    weather.touch()
+    return SimpleNamespace(
+        in_weather_file=weather,
+        out_mdt_tif=dem,
+    )
+
+
+def _windninja_result(returncode: int = 0):
+    return {
+        "summary_txt_path": "summary.txt",
+        "command_txt_path": "command.txt",
+        "stdout_tail_txt_path": "stdout.txt",
+        "stderr_tail_txt_path": "stderr.txt",
+        "new_files_txt_path": "new_files.txt",
+        "new_files": ["a.asc"],
+        "returncode": returncode,
+    }
+
+
+def test_run_windninja_failure_does_not_call_postprocess(client, monkeypatch, tmp_path):
+    import app.scripts.run_local_pipeline as local_pipeline
+
+    cfg = _windninja_cfg(tmp_path)
+    called = {"rename": 0, "worst": 0}
+    monkeypatch.setattr(pipeline, "load_cfg_from_case_or_raise", lambda _: cfg)
+    monkeypatch.setattr(local_pipeline, "run_windninja_stage", lambda _cfg: _windninja_result(returncode=2))
+    monkeypatch.setattr(pipeline, "_run_rename_for_cfg", lambda _cfg: called.__setitem__("rename", called["rename"] + 1))
+    monkeypatch.setattr(pipeline, "_run_worst_supports_for_cfg", lambda _cfg, top_n=4: called.__setitem__("worst", called["worst"] + 1))
+
+    response = client.post("/api/v1/pipeline/run-windninja", json={"case_path": str(tmp_path)})
+
+    assert response.status_code == 500
+    assert called == {"rename": 0, "worst": 0}
+
+
+def test_run_windninja_ok_runs_rename_and_worst_supports(client, monkeypatch, tmp_path):
+    import app.scripts.run_local_pipeline as local_pipeline
+
+    cfg = _windninja_cfg(tmp_path)
+    called = {"rename": 0, "worst": 0}
+    monkeypatch.setattr(pipeline, "load_cfg_from_case_or_raise", lambda _: cfg)
+    monkeypatch.setattr(local_pipeline, "run_windninja_stage", lambda _cfg: _windninja_result())
+
+    def _rename(_cfg):
+        called["rename"] += 1
+        return {"status": "ok", "summary": "rename.txt"}
+
+    def _worst(_cfg, top_n=4):
+        called["worst"] += 1
+        assert top_n == 4
+        return {"top_n": top_n, "worst": [{"idx": 1}]}
+
+    monkeypatch.setattr(pipeline, "_run_rename_for_cfg", _rename)
+    monkeypatch.setattr(pipeline, "_run_worst_supports_for_cfg", _worst)
+
+    response = client.post("/api/v1/pipeline/run-windninja", json={"case_path": str(tmp_path)})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["windninja_success"] is True
+    assert body["rename_success"] is True
+    assert body["worst_supports_success"] is True
+    assert body["worst_supports_count"] == 4
+    assert body["postprocess_warnings"] == []
+    assert called == {"rename": 1, "worst": 1}
+
+
+def test_run_windninja_rename_failure_warns_and_skips_worst(client, monkeypatch, tmp_path):
+    import app.scripts.run_local_pipeline as local_pipeline
+
+    cfg = _windninja_cfg(tmp_path)
+    called = {"worst": 0}
+    monkeypatch.setattr(pipeline, "load_cfg_from_case_or_raise", lambda _: cfg)
+    monkeypatch.setattr(local_pipeline, "run_windninja_stage", lambda _cfg: _windninja_result())
+    monkeypatch.setattr(pipeline, "_run_rename_for_cfg", lambda _cfg: (_ for _ in ()).throw(RuntimeError("rename boom")))
+    monkeypatch.setattr(pipeline, "_run_worst_supports_for_cfg", lambda _cfg, top_n=4: called.__setitem__("worst", called["worst"] + 1))
+
+    response = client.post("/api/v1/pipeline/run-windninja", json={"case_path": str(tmp_path)})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["windninja_success"] is True
+    assert body["rename_success"] is False
+    assert "rename boom" in body["rename_warning"]
+    assert body["worst_supports_success"] is False
+    assert called["worst"] == 0
+
+
+def test_run_windninja_worst_supports_failure_warns(client, monkeypatch, tmp_path):
+    import app.scripts.run_local_pipeline as local_pipeline
+
+    cfg = _windninja_cfg(tmp_path)
+    monkeypatch.setattr(pipeline, "load_cfg_from_case_or_raise", lambda _: cfg)
+    monkeypatch.setattr(local_pipeline, "run_windninja_stage", lambda _cfg: _windninja_result())
+    monkeypatch.setattr(pipeline, "_run_rename_for_cfg", lambda _cfg: {"status": "ok"})
+    monkeypatch.setattr(
+        pipeline,
+        "_run_worst_supports_for_cfg",
+        lambda _cfg, top_n=4: (_ for _ in ()).throw(RuntimeError("worst boom")),
+    )
+
+    response = client.post("/api/v1/pipeline/run-windninja", json={"case_path": str(tmp_path)})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["rename_success"] is True
+    assert body["worst_supports_success"] is False
+    assert "worst boom" in body["worst_supports_warning"]
+
+
+def test_manual_run_rename_endpoint_still_uses_common_logic(client, monkeypatch, tmp_path):
+    cfg = SimpleNamespace()
+    monkeypatch.setattr(pipeline, "load_cfg_from_case_or_raise", lambda _: cfg)
+    monkeypatch.setattr(pipeline, "_run_rename_for_cfg", lambda _cfg: {"status": "ok", "summary": "rename.txt"})
+
+    response = client.post("/api/v1/pipeline/run-rename", json={"case_path": str(tmp_path)})
+
+    assert response.status_code == 200
+    assert response.json()["summary"] == "rename.txt"
+
+
+def test_manual_worst_supports_endpoint_still_uses_common_logic(client, monkeypatch, tmp_path):
+    cfg = SimpleNamespace()
+    monkeypatch.setattr(pipeline, "load_cfg_from_case_or_raise", lambda _: cfg)
+    monkeypatch.setattr(pipeline, "_run_worst_supports_for_cfg", lambda _cfg, top_n=4: {"top_n": top_n, "worst": []})
+
+    response = client.post("/api/v1/analysis/worst-supports", json={"case_path": str(tmp_path)})
+
+    assert response.status_code == 200
+    assert response.json()["top_n"] == 4
