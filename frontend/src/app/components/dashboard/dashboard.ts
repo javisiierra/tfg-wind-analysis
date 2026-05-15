@@ -60,6 +60,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   error: string | null = null;
   progress = 0;
   progressMessage = '';
+  etaMessage = '';
   jobStatus: DashboardJobStatus = 'queued';
   result: DashboardAsyncStatusResponse['result'] = null;
 
@@ -68,6 +69,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   domainGenerationMessage: string | null = null;
 
   private activeJobId: string | null = null;
+  private analysisStartedAtMs: number | null = null;
   private pollingSubscription: Subscription | null = null;
   private monthlyChart: Chart | null = null;
   private windRoseChart: Chart | null = null;
@@ -80,7 +82,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   roseContainerId = 'wind-rose-chart';
   private destroy$ = new Subject<void>();
 
-  private readonly baseCasesPath = 'C:\\Datos_TFG';
+  private readonly baseCasesPath = '/data';
 
   constructor(
     private dashboardService: DashboardService,
@@ -123,7 +125,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   async selectFolderFromDashboard(): Promise<void> {
     try {
       const dirHandle = await (window as any).showDirectoryPicker();
-      const selectedPath = `${this.baseCasesPath}\\${dirHandle.name}`;
+      const selectedPath = `${this.baseCasesPath}/${dirHandle.name}`;
 
       this.casePath = selectedPath;
       this.mapContextService.setCasePath(selectedPath);
@@ -148,6 +150,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     this.isLoading = true;
     this.error = null;
+    this.etaMessage = '';
+    this.analysisStartedAtMs = null;
     this.canGenerateDomain = false;
     this.domainGenerationMessage = null;
 
@@ -170,6 +174,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
       this.progress = 5;
       this.progressMessage = 'Preparando análisis...';
+      this.etaMessage = 'Calculando tiempo estimado...';
+      this.analysisStartedAtMs = Date.now();
       this.jobStatus = 'queued';
       this.result = null;
 
@@ -183,6 +189,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
           this.error = `Error al iniciar análisis: ${detail}`;
           this.canGenerateDomain = this.isDomainMissingError(detail);
           this.isLoading = false;
+          this.etaMessage = '';
+          this.analysisStartedAtMs = null;
           this.cdr.detectChanges();
         }
       });
@@ -308,6 +316,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
           this.canGenerateDomain = this.isDomainMissingError(detail);
           this.isLoading = false;
           this.activeJobId = null;
+          this.etaMessage = '';
+          this.analysisStartedAtMs = null;
           this.stopPolling();
           this.cdr.detectChanges();
         });
@@ -349,6 +359,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       this.jobStatus = status;
       this.progress = Math.max(0, Math.min(100, Number(response.progress ?? 0)));
       this.progressMessage = response.message ?? '';
+      this.etaMessage = this.buildEtaMessage(this.progress, status, this.progressMessage);
       this.result = response.result ?? null;
       this.error = response.error ?? null;
 
@@ -368,6 +379,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
         }
 
         this.isLoading = false;
+        this.etaMessage = '';
+        this.analysisStartedAtMs = null;
         this.canGenerateDomain = false;
         this.cdr.detectChanges();
         this.renderCharts();
@@ -381,10 +394,59 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.error = detail;
         this.canGenerateDomain = this.isDomainMissingError(detail);
         this.isLoading = false;
+        this.etaMessage = '';
+        this.analysisStartedAtMs = null;
       }
 
       this.cdr.detectChanges();
     });
+  }
+
+  private buildEtaMessage(progress: number, status: DashboardJobStatus, progressMessage: string): string {
+    if (!this.analysisStartedAtMs || this.isFinishedStatus(status)) {
+      return '';
+    }
+
+    const elapsedMs = Date.now() - this.analysisStartedAtMs;
+
+    if (progress <= 0 || elapsedMs < 1000) {
+      return 'Backend activo. Calculando tiempo estimado...';
+    }
+
+    const elapsedText = this.formatDuration(elapsedMs);
+    const normalizedProgress = Math.max(5, Math.min(progress, 95));
+    const progressBasedRemainingMs = elapsedMs * ((100 - normalizedProgress) / normalizedProgress);
+    const message = String(progressMessage ?? '').toLowerCase();
+
+    if (progress >= 75 && progress < 90) {
+      return `Backend activo. Tiempo transcurrido: ${elapsedText}. Esperando a Copernicus/ERA5; esta fase puede tardar 5-10 min.`;
+    }
+
+    if (progress >= 90) {
+      return `Backend activo. Tiempo transcurrido: ${elapsedText}. Ultimos calculos, queda poco.`;
+    }
+
+    const nominalTotalMs = message.includes('cache') ? 120000 : 600000;
+    const nominalRemainingMs = Math.max(0, nominalTotalMs - elapsedMs);
+    const remainingMs = Math.max(progressBasedRemainingMs, nominalRemainingMs);
+
+    return `Backend activo. Transcurrido: ${elapsedText}. Estimado restante: ${this.formatDuration(remainingMs)} aprox.`;
+  }
+
+  private formatDuration(durationMs: number): string {
+    const totalSeconds = Math.max(1, Math.round(durationMs / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+
+    if (minutes <= 0) {
+      return `${seconds} s`;
+    }
+
+    if (seconds === 0) {
+      return `${minutes} min`;
+    }
+
+    return `${minutes} min ${seconds} s`;
   }
 
   private renderCharts(): void {
