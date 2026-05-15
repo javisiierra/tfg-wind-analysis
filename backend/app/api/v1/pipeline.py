@@ -1,4 +1,5 @@
 import json
+import os
 import traceback
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,7 @@ from pydantic import BaseModel
 from shapely.geometry import shape, LineString, box
 
 from app.core.config import load_config_from_case
+from app.core.paths import normalize_case_path
 from app.services.case_import.import_folder_service import import_folder_from_input_path
 from app.scripts.run_local_pipeline import (
     run_generate_scenarios,
@@ -21,7 +23,7 @@ from app.scripts.run_local_pipeline import (
 
 router = APIRouter()
 
-BASE_ROOT = Path(r"C:\Datos_TFG")
+BASE_ROOT = normalize_case_path(Path(os.getenv("HOST_CASES_ROOT", r"C:\Datos_TFG")))
 
 
 # ============================================================
@@ -53,7 +55,7 @@ class FolderImportRequest(BaseModel):
 # ============================================================
 
 def load_cfg_from_case_or_raise(case_path: str):
-    base = Path(case_path)
+    base = normalize_case_path(case_path)
 
     if not base.exists():
         raise HTTPException(status_code=404, detail=f"No existe la carpeta del caso: {case_path}")
@@ -151,7 +153,7 @@ def get_existing_path(*paths: Path) -> Path | None:
 
 
 def get_existing_domain_path(case_path: str) -> Path | None:
-    case_root = Path(case_path)
+    case_root = normalize_case_path(case_path)
     cfg = load_cfg_from_case_or_raise(case_path)
 
     return get_existing_path(
@@ -162,7 +164,7 @@ def get_existing_domain_path(case_path: str) -> Path | None:
 
 
 def get_trace_shapefile_path(case_path: str) -> Path | None:
-    trace_path = Path(case_path) / "SHP" / "traza.shp"
+    trace_path = normalize_case_path(case_path) / "SHP" / "traza.shp"
     return trace_path if trace_path.exists() else None
 
 
@@ -170,7 +172,7 @@ def get_supports_shapefile_path(case_path: str) -> Path | None:
     cfg = load_cfg_from_case_or_raise(case_path)
     return get_existing_path(
         Path(cfg.out_apoyos_shp) if cfg.out_apoyos_shp else None,
-        Path(case_path) / "Apoyos" / "apoyos.shp",
+        normalize_case_path(case_path) / "Apoyos" / "apoyos.shp",
     )
 
 
@@ -204,7 +206,8 @@ def _create_domain_from_trace_shp(case_path: str, trace_shp: Path, buffer_m: flo
         crs=gdf.crs,
     )
 
-    shp_dir = Path(case_path) / "SHP"
+    case_root = normalize_case_path(case_path)
+    shp_dir = case_root / "SHP"
     shp_dir.mkdir(parents=True, exist_ok=True)
 
     domain_shp_path = shp_dir / "dominio.shp"
@@ -282,7 +285,8 @@ def _generate_domain_from_supports_logic(case_path: str, buffer_m: float | None 
         crs="EPSG:25830",
     )
 
-    shp_dir = Path(case_path) / "SHP"
+    case_root = normalize_case_path(case_path)
+    shp_dir = case_root / "SHP"
     shp_dir.mkdir(parents=True, exist_ok=True)
 
     domain_shp_path = shp_dir / "dominio.shp"
@@ -391,7 +395,7 @@ def health():
 )
 def generate_vanos_from_supports(request: PipelineRequest):
     try:
-        case_path = Path(request.case_path)
+        case_path = normalize_case_path(request.case_path)
 
         supports_path = get_supports_shapefile_path(request.case_path)
 
@@ -496,7 +500,7 @@ def generate_vanos_from_supports(request: PipelineRequest):
 def create_support(request: SupportCreateRequest):
     try:
         if request.case_path:
-            case_path = Path(request.case_path)
+            case_path = normalize_case_path(request.case_path)
         elif request.case_name:
             case_path = BASE_ROOT / request.case_name
         else:
@@ -720,7 +724,7 @@ def generate_domain_from_supports(request: DomainFromSupportsRequest):
 )
 def generate_dem_from_domain(request: PipelineRequest):
     cfg = load_cfg_from_case_or_raise(request.case_path)
-    case_path = Path(request.case_path)
+    case_path = normalize_case_path(request.case_path)
 
     domain_path = case_path / "SHP" / "dominio.shp"
     if domain_path.exists() and (cfg.in_shp is None or Path(cfg.in_shp).resolve() != domain_path.resolve()):
@@ -853,7 +857,7 @@ def generate_weather_from_domain(request: PipelineRequest):
 )
 def run_preparation(request: PipelineRequest):
     cfg = load_cfg_from_case_or_raise(request.case_path)
-    case_path = Path(request.case_path)
+    case_path = normalize_case_path(request.case_path)
 
     domain_path = get_existing_domain_path(request.case_path)
     domain_info = {"generated": False}
@@ -1078,8 +1082,9 @@ def import_folder_api(request: FolderImportRequest):
 def get_case_status(request: PipelineRequest):
     cfg = load_cfg_from_case_or_raise(request.case_path)
 
-    fallback_apoyos = Path(request.case_path) / "Apoyos" / "apoyos.shp"
-    fallback_domain = Path(request.case_path) / "SHP" / "dominio.shp"
+    case_path = normalize_case_path(request.case_path)
+    fallback_apoyos = case_path / "Apoyos" / "apoyos.shp"
+    fallback_domain = case_path / "SHP" / "dominio.shp"
 
     has_domain = (
         cfg.in_shp is not None and Path(cfg.in_shp).exists()
@@ -1128,14 +1133,14 @@ def get_apoyos_layer(request: PipelineRequest):
 
     shp_path = get_existing_path(
         Path(cfg.out_apoyos_shp) if cfg.out_apoyos_shp else None,
-        Path(request.case_path) / "Apoyos" / "apoyos.shp",
+        normalize_case_path(request.case_path) / "Apoyos" / "apoyos.shp",
     )
 
     if shp_path:
         return shapefile_to_geojson_response(shp_path, "apoyos")
 
     return geojson_file_to_geojson_response(
-        Path(request.case_path) / "Apoyos" / "apoyos.geojson",
+        normalize_case_path(request.case_path) / "Apoyos" / "apoyos.geojson",
         "apoyos",
     )
 
@@ -1167,12 +1172,12 @@ def get_dominio_layer(request: PipelineRequest):
     shp_path = get_existing_path(
         Path(cfg.out_rec_exp_shp) if cfg.out_rec_exp_shp else None,
         Path(cfg.in_shp) if cfg.in_shp else None,
-        Path(request.case_path) / "SHP" / "dominio.shp",
+        normalize_case_path(request.case_path) / "SHP" / "dominio.shp",
     )
 
     if shp_path is None:
         return geojson_file_to_geojson_response(
-            Path(request.case_path) / "SHP" / "dominio.geojson",
+            normalize_case_path(request.case_path) / "SHP" / "dominio.geojson",
             "dominio",
         )
 

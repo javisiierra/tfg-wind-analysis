@@ -9,6 +9,8 @@ from fastapi import HTTPException
 from shapely.geometry import Point, Polygon, box
 from shapely.wkt import loads as load_wkt
 
+from app.core.paths import normalize_case_path
+
 
 SUPPORTED_EXCEL_SUFFIXES = {".xlsx", ".xls"}
 SUPPORTED_SHAPE_EXTENSIONS = {".shp", ".dbf", ".shx", ".prj", ".cpg", ".qpj"}
@@ -271,7 +273,7 @@ def _copy_excel_to_case(excel_path: Path, destino: Path) -> Path:
 
 
 def import_folder_from_input_path(input_path: str) -> dict[str, str]:
-    case_root = Path(input_path).resolve()
+    case_root = normalize_case_path(input_path).resolve()
     if not case_root.exists() or not case_root.is_dir():
         raise HTTPException(status_code=400, detail=f"La ruta de entrada no es una carpeta válida: {input_path}")
 

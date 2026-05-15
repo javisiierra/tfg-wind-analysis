@@ -5,6 +5,8 @@ services:
     container_name: tfg-backend
     environment:
       PYTHONUNBUFFERED: "1"
+      CASES_ROOT: "/data"
+      HOST_CASES_ROOT: "${HOST_CASES_ROOT:-C:\\Datos_TFG}"
       WINDNINJA_CLI: "${WINDNINJA_CLI:-WindNinja_cli}"
       CDSAPI_URL: "${CDSAPI_URL:-}"
       CDSAPI_KEY: "${CDSAPI_KEY:-}"
@@ -12,7 +14,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
-      - ./data:/data
+      - ${HOST_CASES_ROOT:-./data}:/data
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   frontend:

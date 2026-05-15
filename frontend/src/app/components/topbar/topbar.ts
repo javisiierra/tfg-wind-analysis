@@ -21,7 +21,7 @@ export interface PipelineStatus {
 export class Topbar {
   casePath = '';
 
-  private readonly baseCasesPath = 'C:\\Datos_TFG';
+  private readonly baseCasesPath = '/data';
   private readonly apiBaseUrl = environment.apiBaseUrl;
 
   @Output() caseChange = new EventEmitter<string>();
@@ -38,7 +38,7 @@ export class Topbar {
     try {
       const dirHandle = await (window as any).showDirectoryPicker();
 
-      this.casePath = `${this.baseCasesPath}\\${dirHandle.name}`;
+      this.casePath = `${this.baseCasesPath}/${dirHandle.name}`;
       this.caseChange.emit(this.casePath);
 
       this.result = null;
