@@ -116,6 +116,10 @@
       Generar dominio desde apoyos
     </button>
 
+    <button class="btn secondary" (click)="runGenerateVanosFromSupports()" [disabled]="!casePath || !caseStatus?.has_apoyos">
+      Generar vanos desde apoyos
+    </button>
+
     <button class="btn secondary" (click)="runGenerateDem()" [disabled]="!casePath">
       Generar DEM
     </button>

@@ -109,6 +109,7 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
 
   onLayerSelected(layer: string): void {
     this.mapContextService.setSelectedLayer(layer);
+    this.mapContextService.reloadSelectedLayer();
   }
 
   onDrawModeChange(mode: DrawMode): void {

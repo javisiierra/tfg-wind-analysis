@@ -78,6 +78,16 @@ export interface GenerateDomainFromSupportsResponse {
   [key: string]: unknown;
 }
 
+export interface GenerateVanosFromSupportsResponse {
+  status: string;
+  message: string;
+  created: boolean;
+  vanos_count: number;
+  output_shp: string;
+  output_geojson: string;
+  [key: string]: unknown;
+}
+
 @Injectable({ providedIn: 'root' })
 export class DashboardService {
   private readonly apiBaseUrl = environment.apiBaseUrl;
@@ -104,6 +114,12 @@ export class DashboardService {
   generateDomainFromSupports(casePath: string): Observable<GenerateDomainFromSupportsResponse> {
     return this.http.post<GenerateDomainFromSupportsResponse>(
       `${this.apiBaseUrl}/domain/generate-from-supports`,
+      { case_path: casePath }
+    );
+  }
+  generateVanosFromSupports(casePath: string): Observable<GenerateVanosFromSupportsResponse> {
+    return this.http.post<GenerateVanosFromSupportsResponse>(
+      `${this.apiBaseUrl}/vanos/generate-from-supports`,
       { case_path: casePath }
     );
   }

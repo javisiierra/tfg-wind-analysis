@@ -66,6 +66,39 @@ def test_generate_domain_from_supports_with_service_mock(client, monkeypatch, tm
     assert called == {"case_path": str(case_path), "buffer_m": 250}
 
 
+def test_generate_vanos_from_supports_with_service_mock(client, monkeypatch, tmp_path):
+    case_path = tmp_path / "case_vanos"
+    case_path.mkdir(parents=True)
+    expected = {
+        "status": "ok",
+        "message": "Generados 2 vanos desde apoyos",
+        "created": True,
+        "vanos_count": 2,
+        "output_shp": str(case_path / "SHP" / "vanos.shp"),
+        "output_geojson": str(case_path / "SHP" / "vanos.geojson"),
+    }
+    called = {}
+
+    monkeypatch.setattr(pipeline, "load_cfg_from_case_or_raise", lambda path: SimpleNamespace())
+
+    def _fake_generate(case_path_arg: str, cfg):
+        called["case_path"] = case_path_arg
+        called["cfg"] = cfg
+        return expected
+
+    monkeypatch.setattr(pipeline, "generate_vanos_from_supports_service", _fake_generate)
+
+    response = client.post(
+        "/api/v1/vanos/generate-from-supports",
+        json={"case_path": str(case_path)},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["created"] is True
+    assert response.json()["vanos_count"] == 2
+    assert called["case_path"] == str(case_path)
+
+
 def test_controlled_errors_case_not_found_and_invalid_supports(client, monkeypatch, tmp_path):
     missing_response = client.post(
         "/api/v1/domain/generate-from-supports",

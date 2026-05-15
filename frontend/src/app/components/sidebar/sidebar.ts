@@ -115,6 +115,10 @@ export class Sidebar {
     this.callDomain('/generate-from-supports', 'Generar dominio desde apoyos');
   }
 
+  runGenerateVanosFromSupports() {
+    this.callVanos('/generate-from-supports', 'Generar vanos desde apoyos');
+  }
+
   runGenerateDem() {
     this.callDomain('/generate-dem', 'Generar DEM');
   }
@@ -215,6 +219,28 @@ export class Sidebar {
         this.loading = false;
         this.actionCompletedOk.emit(this.casePath);
         this.layerSelected.emit('dominio');
+      },
+      error: (err) => {
+        this.error = err;
+        this.loading = false;
+      }
+    });
+  }
+
+  private callVanos(endpoint: string, action: string) {
+    this.loading = true;
+    this.result = null;
+    this.error = null;
+    this.currentAction = action;
+
+    this.http.post(`http://127.0.0.1:8000/api/v1/vanos${endpoint}`, {
+      case_path: this.casePath
+    }).subscribe({
+      next: (res) => {
+        this.result = res;
+        this.loading = false;
+        this.actionCompletedOk.emit(this.casePath);
+        this.layerSelected.emit('vanos');
       },
       error: (err) => {
         this.error = err;
