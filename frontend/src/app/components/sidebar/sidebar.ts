@@ -22,7 +22,6 @@ export class Sidebar {
   @Output() drawModeChange = new EventEmitter<DrawMode>();
   @Output() clearDrawing = new EventEmitter<void>();
   @Output() caseCreated = new EventEmitter<string>();
-  @Output() refreshStatusRequested = new EventEmitter<void>();
   @Output() actionCompletedOk = new EventEmitter<string | undefined>();
 
   result: any = null;
@@ -34,10 +33,6 @@ export class Sidebar {
   caseName = '';
 
   constructor(private http: HttpClient) {}
-
-  onRefreshStatusClick(): void {
-    this.refreshStatusRequested.emit();
-  }
 
   startSupportDraw() {
     this.drawModeChange.emit('support');
@@ -133,18 +128,6 @@ export class Sidebar {
     this.call('/run-windninja', 'WindNinja');
   }
 
-  runRename() {
-    this.call('/run-rename', 'Rename');
-  }
-
-  runWindRose() {
-    this.call('/run-wind-rose', 'Wind Rose');
-  }
-
-  runWorstSupports() {
-    this.callAnalysis('/worst-supports', 'Vanos críticos');
-  }
-
   showApoyos() {
     this.layerSelected.emit('apoyos');
   }
@@ -210,29 +193,6 @@ export class Sidebar {
     });
   }
 
-  private callSupports(endpoint: string, action: string) {
-    this.loading = true;
-    this.result = null;
-    this.error = null;
-    this.userMessage = '';
-    this.currentAction = action;
-
-    this.http.post(`http://127.0.0.1:8000/api/v1/supports${endpoint}`, {
-      case_path: this.casePath
-    }).subscribe({
-      next: (res) => {
-        this.result = res;
-        this.loading = false;
-        this.actionCompletedOk.emit(this.casePath);
-        this.layerSelected.emit('dominio');
-      },
-      error: (err) => {
-        this.error = err;
-        this.loading = false;
-      }
-    });
-  }
-
   private callVanos(endpoint: string, action: string) {
     this.loading = true;
     this.result = null;
@@ -255,38 +215,24 @@ export class Sidebar {
     });
   }
 
-  private callAnalysis(endpoint: string, action: string) {
-    this.loading = true;
-    this.result = null;
-    this.error = null;
-    this.userMessage = '';
-    this.currentAction = action;
-
-    this.http.post(`http://127.0.0.1:8000/api/v1/analysis${endpoint}`, {
-      case_path: this.casePath
-    }).subscribe({
-      next: (res) => {
-        this.result = res;
-        this.loading = false;
-        this.actionCompletedOk.emit(this.casePath);
-      },
-      error: (err) => {
-        this.error = err;
-        this.loading = false;
-      }
-    });
-  }
-
   private buildPipelineUserMessage(endpoint: string, res: any): string {
     if (endpoint !== '/run-windninja') {
       return '';
     }
 
-    if (res?.rename_success && res?.worst_supports_success) {
-      return 'WindNinja finalizado. Salidas renombradas y vanos críticos calculados.';
+    if (res?.rename_success && res?.worst_supports_success && res?.wind_rose_success) {
+      return 'WindNinja finalizado. Salidas renombradas, vanos críticos y rosa de vientos generados.';
     }
 
-    if (res?.postprocess_warnings?.length || res?.rename_warning || res?.worst_supports_warning) {
+    if (res?.wind_rose_warning || res?.wind_rose_success === false) {
+      return 'WindNinja finalizado, pero no se pudo generar la rosa de vientos.';
+    }
+
+    if (
+      res?.postprocess_warnings?.length ||
+      res?.rename_warning ||
+      res?.worst_supports_warning
+    ) {
       return 'WindNinja finalizado, pero hubo avisos en el postproceso.';
     }
 

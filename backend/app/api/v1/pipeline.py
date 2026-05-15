@@ -1023,6 +1023,20 @@ def _run_worst_supports_for_cfg(cfg, top_n: int = 4) -> dict[str, Any]:
     return compute_worst_supports(cfg, top_n=top_n)
 
 
+def _run_wind_rose_for_cfg(cfg) -> dict[str, Any]:
+    from app.scripts.run_local_pipeline import run_wind_rose_stage
+
+    result = run_wind_rose_stage(cfg)
+
+    return {
+        "status": "ok",
+        "csv": str(result.get("out_csv_path")),
+        "plot": str(result.get("out_plot_path")),
+        "weibull": str(result.get("out_weibull_path")),
+        "cfg_csv": str(result.get("cfg_csv_path")) if result.get("cfg_csv_path") else None,
+    }
+
+
 @router.post(
     "/pipeline/run-windninja",
     tags=["Pipeline"],
@@ -1058,10 +1072,13 @@ def run_windninja_api(request: PipelineRequest):
         postprocess_warnings: list[str] = []
         rename_result: dict[str, Any] | None = None
         worst_supports_result: dict[str, Any] | None = None
+        wind_rose_result: dict[str, Any] | None = None
         rename_success = False
         worst_supports_success = False
+        wind_rose_success = False
         rename_warning = None
         worst_supports_warning = None
+        wind_rose_warning = None
 
         try:
             logger.info("[run-windninja] Starting automatic rename")
@@ -1086,6 +1103,16 @@ def run_windninja_api(request: PipelineRequest):
                 postprocess_warnings.append(worst_supports_warning)
                 logger.warning("[run-windninja] Worst-supports failed: %s", exc)
 
+        try:
+            logger.info("[run-windninja] Starting automatic wind rose")
+            wind_rose_result = _run_wind_rose_for_cfg(cfg)
+            wind_rose_success = True
+            logger.info("[run-windninja] Wind rose completed")
+        except Exception as exc:
+            wind_rose_warning = f"WindNinja finalizÃ³, pero fallÃ³ la generaciÃ³n de la rosa de vientos: {exc}"
+            postprocess_warnings.append(wind_rose_warning)
+            logger.warning("[run-windninja] Wind rose failed: %s", exc)
+
         return {
             "status": "ok",
             "case_path": request.case_path,
@@ -1104,6 +1131,9 @@ def run_windninja_api(request: PipelineRequest):
             "worst_supports_count": 4 if worst_supports_success else 0,
             "worst_supports_warning": worst_supports_warning,
             "worst_supports": worst_supports_result,
+            "wind_rose_success": wind_rose_success,
+            "wind_rose_warning": wind_rose_warning,
+            "wind_rose_output": wind_rose_result,
             "postprocess_warnings": postprocess_warnings,
         }
 
@@ -1146,16 +1176,9 @@ def run_wind_rose_api(request: PipelineRequest):
     cfg = load_cfg_from_case_or_raise(request.case_path)
 
     try:
-        from app.scripts.run_local_pipeline import run_wind_rose_stage
-
-        result = run_wind_rose_stage(cfg)
-
         return {
-            "status": "ok",
             "case_path": request.case_path,
-            "csv": str(result.get("out_csv_path")),
-            "plot": str(result.get("out_plot_path")),
-            "weibull": str(result.get("out_weibull_path")),
+            **_run_wind_rose_for_cfg(cfg),
         }
 
     except HTTPException:

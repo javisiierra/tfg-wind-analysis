@@ -27,11 +27,12 @@ describe('Sidebar', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should emit refresh status requests', () => {
-    const spy = vi.fn();
-    component.refreshStatusRequested.subscribe(spy);
-    component.onRefreshStatusClick();
-    expect(spy).toHaveBeenCalledOnce();
+  it('should hide manual postprocess and refresh buttons from the main flow', () => {
+    const text = fixture.nativeElement.textContent;
+    expect(text).not.toContain('Run Rename');
+    expect(text).not.toContain('Run Wind Rose');
+    expect(text).not.toContain('Calcular 4');
+    expect(text).not.toContain('Refrescar estado');
   });
 
   it('should emit draw mode changes', () => {
@@ -63,14 +64,15 @@ describe('Sidebar', () => {
       status: 'ok',
       rename_success: true,
       worst_supports_success: true,
+      wind_rose_success: true,
       postprocess_warnings: []
     });
 
-    expect(component.userMessage).toBe('WindNinja finalizado. Salidas renombradas y vanos críticos calculados.');
+    expect(component.userMessage).toBe('WindNinja finalizado. Salidas renombradas, vanos críticos y rosa de vientos generados.');
     expect(completedSpy).toHaveBeenCalledWith('C:/case');
   });
 
-  it('runWindNinja should show postprocess warning message', () => {
+  it('runWindNinja should show wind rose warning message', () => {
     component.casePath = 'C:/case';
     component.caseStatus = { ready_for_windninja: true } as any;
 
@@ -80,11 +82,12 @@ describe('Sidebar', () => {
     req.flush({
       status: 'ok',
       rename_success: true,
-      worst_supports_success: false,
-      worst_supports_warning: 'analysis failed',
-      postprocess_warnings: ['analysis failed']
+      worst_supports_success: true,
+      wind_rose_success: false,
+      wind_rose_warning: 'rose failed',
+      postprocess_warnings: ['rose failed']
     });
 
-    expect(component.userMessage).toBe('WindNinja finalizado, pero hubo avisos en el postproceso.');
+    expect(component.userMessage).toBe('WindNinja finalizado, pero no se pudo generar la rosa de vientos.');
   });
 });

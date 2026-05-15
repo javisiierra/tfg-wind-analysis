@@ -233,23 +233,24 @@ def test_run_windninja_failure_does_not_call_postprocess(client, monkeypatch, tm
     import app.scripts.run_local_pipeline as local_pipeline
 
     cfg = _windninja_cfg(tmp_path)
-    called = {"rename": 0, "worst": 0}
+    called = {"rename": 0, "worst": 0, "rose": 0}
     monkeypatch.setattr(pipeline, "load_cfg_from_case_or_raise", lambda _: cfg)
     monkeypatch.setattr(local_pipeline, "run_windninja_stage", lambda _cfg: _windninja_result(returncode=2))
     monkeypatch.setattr(pipeline, "_run_rename_for_cfg", lambda _cfg: called.__setitem__("rename", called["rename"] + 1))
     monkeypatch.setattr(pipeline, "_run_worst_supports_for_cfg", lambda _cfg, top_n=4: called.__setitem__("worst", called["worst"] + 1))
+    monkeypatch.setattr(pipeline, "_run_wind_rose_for_cfg", lambda _cfg: called.__setitem__("rose", called["rose"] + 1))
 
     response = client.post("/api/v1/pipeline/run-windninja", json={"case_path": str(tmp_path)})
 
     assert response.status_code == 500
-    assert called == {"rename": 0, "worst": 0}
+    assert called == {"rename": 0, "worst": 0, "rose": 0}
 
 
 def test_run_windninja_ok_runs_rename_and_worst_supports(client, monkeypatch, tmp_path):
     import app.scripts.run_local_pipeline as local_pipeline
 
     cfg = _windninja_cfg(tmp_path)
-    called = {"rename": 0, "worst": 0}
+    called = {"rename": 0, "worst": 0, "rose": 0}
     monkeypatch.setattr(pipeline, "load_cfg_from_case_or_raise", lambda _: cfg)
     monkeypatch.setattr(local_pipeline, "run_windninja_stage", lambda _cfg: _windninja_result())
 
@@ -262,8 +263,13 @@ def test_run_windninja_ok_runs_rename_and_worst_supports(client, monkeypatch, tm
         assert top_n == 4
         return {"top_n": top_n, "worst": [{"idx": 1}]}
 
+    def _rose(_cfg):
+        called["rose"] += 1
+        return {"status": "ok", "plot": "wind_rose.png"}
+
     monkeypatch.setattr(pipeline, "_run_rename_for_cfg", _rename)
     monkeypatch.setattr(pipeline, "_run_worst_supports_for_cfg", _worst)
+    monkeypatch.setattr(pipeline, "_run_wind_rose_for_cfg", _rose)
 
     response = client.post("/api/v1/pipeline/run-windninja", json={"case_path": str(tmp_path)})
 
@@ -273,19 +279,22 @@ def test_run_windninja_ok_runs_rename_and_worst_supports(client, monkeypatch, tm
     assert body["rename_success"] is True
     assert body["worst_supports_success"] is True
     assert body["worst_supports_count"] == 4
+    assert body["wind_rose_success"] is True
+    assert body["wind_rose_output"]["plot"] == "wind_rose.png"
     assert body["postprocess_warnings"] == []
-    assert called == {"rename": 1, "worst": 1}
+    assert called == {"rename": 1, "worst": 1, "rose": 1}
 
 
 def test_run_windninja_rename_failure_warns_and_skips_worst(client, monkeypatch, tmp_path):
     import app.scripts.run_local_pipeline as local_pipeline
 
     cfg = _windninja_cfg(tmp_path)
-    called = {"worst": 0}
+    called = {"worst": 0, "rose": 0}
     monkeypatch.setattr(pipeline, "load_cfg_from_case_or_raise", lambda _: cfg)
     monkeypatch.setattr(local_pipeline, "run_windninja_stage", lambda _cfg: _windninja_result())
     monkeypatch.setattr(pipeline, "_run_rename_for_cfg", lambda _cfg: (_ for _ in ()).throw(RuntimeError("rename boom")))
     monkeypatch.setattr(pipeline, "_run_worst_supports_for_cfg", lambda _cfg, top_n=4: called.__setitem__("worst", called["worst"] + 1))
+    monkeypatch.setattr(pipeline, "_run_wind_rose_for_cfg", lambda _cfg: called.__setitem__("rose", called["rose"] + 1) or {"status": "ok"})
 
     response = client.post("/api/v1/pipeline/run-windninja", json={"case_path": str(tmp_path)})
 
@@ -296,6 +305,8 @@ def test_run_windninja_rename_failure_warns_and_skips_worst(client, monkeypatch,
     assert "rename boom" in body["rename_warning"]
     assert body["worst_supports_success"] is False
     assert called["worst"] == 0
+    assert body["wind_rose_success"] is True
+    assert called["rose"] == 1
 
 
 def test_run_windninja_worst_supports_failure_warns(client, monkeypatch, tmp_path):
@@ -310,6 +321,7 @@ def test_run_windninja_worst_supports_failure_warns(client, monkeypatch, tmp_pat
         "_run_worst_supports_for_cfg",
         lambda _cfg, top_n=4: (_ for _ in ()).throw(RuntimeError("worst boom")),
     )
+    monkeypatch.setattr(pipeline, "_run_wind_rose_for_cfg", lambda _cfg: {"status": "ok", "plot": "wind_rose.png"})
 
     response = client.post("/api/v1/pipeline/run-windninja", json={"case_path": str(tmp_path)})
 
@@ -318,6 +330,32 @@ def test_run_windninja_worst_supports_failure_warns(client, monkeypatch, tmp_pat
     assert body["rename_success"] is True
     assert body["worst_supports_success"] is False
     assert "worst boom" in body["worst_supports_warning"]
+    assert body["wind_rose_success"] is True
+
+
+def test_run_windninja_wind_rose_failure_warns(client, monkeypatch, tmp_path):
+    import app.scripts.run_local_pipeline as local_pipeline
+
+    cfg = _windninja_cfg(tmp_path)
+    monkeypatch.setattr(pipeline, "load_cfg_from_case_or_raise", lambda _: cfg)
+    monkeypatch.setattr(local_pipeline, "run_windninja_stage", lambda _cfg: _windninja_result())
+    monkeypatch.setattr(pipeline, "_run_rename_for_cfg", lambda _cfg: {"status": "ok"})
+    monkeypatch.setattr(pipeline, "_run_worst_supports_for_cfg", lambda _cfg, top_n=4: {"top_n": top_n, "worst": []})
+    monkeypatch.setattr(
+        pipeline,
+        "_run_wind_rose_for_cfg",
+        lambda _cfg: (_ for _ in ()).throw(RuntimeError("rose boom")),
+    )
+
+    response = client.post("/api/v1/pipeline/run-windninja", json={"case_path": str(tmp_path)})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["windninja_success"] is True
+    assert body["rename_success"] is True
+    assert body["worst_supports_success"] is True
+    assert body["wind_rose_success"] is False
+    assert "rose boom" in body["wind_rose_warning"]
 
 
 def test_manual_run_rename_endpoint_still_uses_common_logic(client, monkeypatch, tmp_path):
@@ -329,6 +367,17 @@ def test_manual_run_rename_endpoint_still_uses_common_logic(client, monkeypatch,
 
     assert response.status_code == 200
     assert response.json()["summary"] == "rename.txt"
+
+
+def test_manual_run_wind_rose_endpoint_still_uses_common_logic(client, monkeypatch, tmp_path):
+    cfg = SimpleNamespace()
+    monkeypatch.setattr(pipeline, "load_cfg_from_case_or_raise", lambda _: cfg)
+    monkeypatch.setattr(pipeline, "_run_wind_rose_for_cfg", lambda _cfg: {"status": "ok", "plot": "wind_rose.png"})
+
+    response = client.post("/api/v1/pipeline/run-wind-rose", json={"case_path": str(tmp_path)})
+
+    assert response.status_code == 200
+    assert response.json()["plot"] == "wind_rose.png"
 
 
 def test_manual_worst_supports_endpoint_still_uses_common_logic(client, monkeypatch, tmp_path):
