@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Output } from '@angular/core';
+import { Component, EventEmitter, Input, NgZone, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
@@ -19,12 +19,13 @@ export interface PipelineStatus {
   styleUrl: './topbar.css',
 })
 export class Topbar {
-  casePath = '';
+  @Input() casePath = '';
 
   private readonly baseCasesPath = '/data';
   private readonly apiBaseUrl = environment.apiBaseUrl;
 
-  @Output() caseChange = new EventEmitter<string>();
+  @Output() folderSelected = new EventEmitter<string>();
+  @Output() casePrepared = new EventEmitter<string>();
   @Output() pipelineStatusChange = new EventEmitter<PipelineStatus>();
 
   result: any = null;
@@ -32,21 +33,31 @@ export class Topbar {
   loading = false;
   currentStep = '';
 
-  constructor(private http: HttpClient) {}
+  constructor(
+    private http: HttpClient,
+    private ngZone: NgZone
+  ) {}
+
+  onCasePathInputChange(path: string): void {
+    this.casePath = path;
+    this.folderSelected.emit(path);
+  }
 
   async selectFolder() {
     try {
       const dirHandle = await (window as any).showDirectoryPicker();
 
-      this.casePath = `${this.baseCasesPath}/${dirHandle.name}`;
-      this.caseChange.emit(this.casePath);
+      this.ngZone.run(() => {
+        this.casePath = `${this.baseCasesPath}/${dirHandle.name}`;
+        this.folderSelected.emit(this.casePath);
 
-      this.result = null;
-      this.error = null;
-      this.loading = false;
-      this.currentStep = '';
+        this.result = null;
+        this.error = null;
+        this.loading = false;
+        this.currentStep = '';
 
-      this.emitPipelineStatus();
+        this.emitPipelineStatus();
+      });
     } catch (err) {
       console.error('Selección de carpeta cancelada o no soportada:', err);
     }
@@ -59,8 +70,6 @@ export class Topbar {
     return;
   }
 
-  this.caseChange.emit(this.casePath);
-
   this.loading = true;
   this.result = null;
   this.error = null;
@@ -72,6 +81,7 @@ export class Topbar {
     next: (res) => {
       this.result = res;
       this.loading = false;
+      this.casePrepared.emit(this.casePath);
       this.emitPipelineStatus();
     },
     error: (err) => {

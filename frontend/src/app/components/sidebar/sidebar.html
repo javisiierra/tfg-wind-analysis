@@ -1,7 +1,6 @@
 <div class="sidebar">
   <section class="sidebar-card">
     <div class="section-header">
-      <span class="section-icon">📍</span>
       <div>
         <h3>Dibujar apoyos</h3>
         <p>Añade apoyos manualmente sobre el mapa</p>
@@ -27,7 +26,6 @@
       Limpiar apoyos dibujados
     </button>
 
-    <!-- 🔥 CAMBIO IMPORTANTE -->
     <div class="geometry-pill" [class.ok]="drawnGeometries.length">
       {{
         drawnGeometries.length
@@ -36,7 +34,6 @@
       }}
     </div>
 
-    <!-- 🔥 CAMBIO IMPORTANTE -->
     <button
       class="btn primary"
       (click)="saveCase()"
@@ -48,60 +45,74 @@
 
   <section class="sidebar-card">
     <div class="section-header">
-      <span class="section-icon">✅</span>
       <div>
         <h3>Estado del caso</h3>
         <p>Validación de entradas necesarias</p>
       </div>
     </div>
 
-    <div class="status-list">
-      <div class="status-item" [class.ok]="hasDomain">
-        <span>Dominio</span>
-        <strong>{{ hasDomain ? 'OK' : 'Pendiente' }}</strong>
-      </div>
-
-      <div class="status-item" [class.ok]="hasApoyos">
-        <span>Apoyos</span>
-        <strong>{{ hasApoyos ? 'OK' : 'Pendiente' }}</strong>
-      </div>
-
-      <div class="status-item" [class.ok]="hasVanos">
-        <span>Vanos</span>
-        <strong>{{ hasVanos ? 'OK' : 'Pendiente' }}</strong>
-      </div>
-
-      <div class="status-item" [class.ok]="hasDem">
-        <span>DEM</span>
-        <strong>{{ hasDem ? 'OK' : 'Pendiente' }}</strong>
-      </div>
-
-      <div class="status-item" [class.ok]="hasWeatherData">
-        <span>Meteorología</span>
-        <strong>{{ hasWeatherData ? 'OK' : 'Pendiente' }}</strong>
-      </div>
-
-      <div class="status-item" [class.ok]="readyForWindNinja">
-        <span>WindNinja</span>
-        <strong>{{ readyForWindNinja ? 'Listo' : 'No listo' }}</strong>
-      </div>
+    <div class="case-status-path">
+      Estado de: {{ caseStatus?.case_path || casePath || 'Sin caso seleccionado' }}
     </div>
 
-    <button class="btn ghost" (click)="refreshCaseStatus()" [disabled]="!casePath">
+    <div *ngIf="isCaseStatusLoading" class="loading-box">
+      Actualizando estado...
+    </div>
+
+    <div class="status-list">
+      <ng-container *ngIf="!isCaseStatusLoading && caseStatus; else emptyCaseStatus">
+      <div class="status-item" [class.ok]="caseStatus.has_domain">
+        <span>Dominio</span>
+        <strong>{{ caseStatus.has_domain ? 'OK' : 'Pendiente' }}</strong>
+      </div>
+
+      <div class="status-item" [class.ok]="caseStatus.has_apoyos">
+        <span>Apoyos</span>
+        <strong>{{ caseStatus.has_apoyos ? 'OK' : 'Pendiente' }}</strong>
+      </div>
+
+      <div class="status-item" [class.ok]="caseStatus.has_vanos">
+        <span>Vanos</span>
+        <strong>{{ caseStatus.has_vanos ? 'OK' : 'Pendiente' }}</strong>
+      </div>
+
+      <div class="status-item" [class.ok]="caseStatus.has_dem">
+        <span>DEM</span>
+        <strong>{{ caseStatus.has_dem ? 'OK' : 'Pendiente' }}</strong>
+      </div>
+
+      <div class="status-item" [class.ok]="caseStatus.has_weather">
+        <span>Meteorología</span>
+        <strong>{{ caseStatus.has_weather ? 'OK' : 'Pendiente' }}</strong>
+      </div>
+
+      <div class="status-item" [class.ok]="caseStatus.ready_for_windninja">
+        <span>WindNinja</span>
+        <strong>{{ caseStatus.ready_for_windninja ? 'Listo' : 'No listo' }}</strong>
+      </div>
+      </ng-container>
+
+      <ng-template #emptyCaseStatus>
+        <div *ngIf="!isCaseStatusLoading" class="empty-status">
+          Sin estado cargado
+        </div>
+      </ng-template>
+    </div>
+
+    <button class="btn ghost" (click)="onRefreshStatusClick()" [disabled]="!casePath || isCaseStatusLoading">
       Refrescar estado
     </button>
   </section>
 
   <section class="sidebar-card">
     <div class="section-header">
-      <span class="section-icon">⚙️</span>
       <div>
         <h3>Ejecución</h3>
         <p>Pipeline de preparación y simulación</p>
       </div>
     </div>
 
-    <button class="btn secondary" (click)="runGenerateDomainFromSupports()" [disabled]="!casePath || !hasApoyos">
+    <button class="btn secondary" (click)="runGenerateDomainFromSupports()" [disabled]="!casePath || !caseStatus?.has_apoyos">
       Generar dominio desde apoyos
     </button>
 
@@ -113,18 +124,17 @@
       Generar meteorología
     </button>
 
-    <button class="btn primary" (click)="runWindNinja()" [disabled]="!readyForWindNinja">
+    <button class="btn primary" (click)="runWindNinja()" [disabled]="!caseStatus?.ready_for_windninja">
       Run WindNinja
     </button>
 
-    <div *ngIf="casePath && !readyForWindNinja" class="warning-box">
+    <div *ngIf="casePath && !caseStatus?.ready_for_windninja" class="warning-box">
       Este caso aún no está listo para ejecutar WindNinja.
     </div>
   </section>
 
   <section class="sidebar-card">
     <div class="section-header">
-      <span class="section-icon">🗺️</span>
       <div>
         <h3>Capas</h3>
         <p>Visualización en el mapa</p>
@@ -141,7 +151,6 @@
 
   <section class="sidebar-card">
     <div class="section-header">
-      <span class="section-icon">📊</span>
       <div>
         <h3>Análisis</h3>
         <p>Postprocesado de resultados</p>

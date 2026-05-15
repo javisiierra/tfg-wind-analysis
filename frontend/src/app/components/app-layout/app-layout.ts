@@ -1,11 +1,12 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterOutlet } from '@angular/router';
 import { Topbar } from '../topbar/topbar';
 import { Sidebar } from '../sidebar/sidebar';
 import { MapContextService, DrawMode } from '../../services/map-context.service';
 import { PipelineStatus } from '../topbar/topbar';
-import { Subject } from 'rxjs';
+import { CaseStatusResponse, DashboardService } from '../../services/dashboard.service';
+import { Subject, finalize } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 
 @Component({
@@ -17,6 +18,8 @@ import { takeUntil } from 'rxjs/operators';
 })
 export class AppLayoutComponent implements OnInit, OnDestroy {
   casePath = '';
+  caseStatus: CaseStatusResponse | null = null;
+  isCaseStatusLoading = false;
   selectedLayer = '';
   drawMode: DrawMode = 'none';
   drawnGeometries: Record<string, any>[] = [];
@@ -30,15 +33,34 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
   };
 
   private destroy$ = new Subject<void>();
+  private caseStatusRequestId = 0;
 
-  constructor(private mapContextService: MapContextService) {}
+  constructor(
+    private mapContextService: MapContextService,
+    private dashboardService: DashboardService,
+    private changeDetectorRef: ChangeDetectorRef
+  ) {}
 
   ngOnInit(): void {
     // Subscribe to context changes
     this.mapContextService.casePath$
       .pipe(takeUntil(this.destroy$))
       .subscribe(path => {
-        this.casePath = path;
+        const normalizedPath = path?.trim();
+
+        if (normalizedPath === this.casePath) {
+          return;
+        }
+
+        if (!normalizedPath) {
+          this.casePath = '';
+          this.caseStatus = null;
+          this.isCaseStatusLoading = false;
+          return;
+        }
+
+        this.casePath = normalizedPath;
+        this.loadCaseStatus(normalizedPath);
       });
 
     this.mapContextService.selectedLayer$
@@ -65,8 +87,24 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  onCasePathChange(path: string): void {
-    this.mapContextService.setCasePath(path);
+  onFolderSelected(path: string): void {
+    const normalizedPath = path?.trim();
+
+    if (!normalizedPath) {
+      this.casePath = '';
+      this.caseStatus = null;
+      this.isCaseStatusLoading = false;
+      return;
+    }
+
+    this.casePath = normalizedPath;
+    this.mapContextService.setCasePath(normalizedPath);
+
+    this.loadCaseStatus(normalizedPath);
+  }
+
+  refreshActiveCaseStatus(): void {
+    this.loadCaseStatus(this.casePath);
   }
 
   onLayerSelected(layer: string): void {
@@ -88,12 +126,64 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
   }
 
   onCaseCreated(path: string): void {
-    this.mapContextService.setCasePath(path);
+    this.onFolderSelected(path);
     this.mapContextService.setSelectedLayer('apoyos');
+  }
+
+  onCaseActionCompleted(path?: string): void {
+    const normalizedPath = path?.trim();
+
+    if (normalizedPath && normalizedPath !== this.casePath) {
+      this.casePath = normalizedPath;
+      this.mapContextService.setCasePath(normalizedPath);
+    }
+
+    this.refreshActiveCaseStatus();
   }
 
   onPipelineStatusChange(status: PipelineStatus): void {
     this.pipelineStatus = status;
+  }
+
+  private loadCaseStatus(path: string): void {
+    const normalizedPath = path?.trim();
+
+    if (!normalizedPath) {
+      this.caseStatus = null;
+      this.isCaseStatusLoading = false;
+      this.changeDetectorRef.detectChanges();
+      return;
+    }
+
+    this.isCaseStatusLoading = true;
+    this.caseStatus = null;
+    this.changeDetectorRef.detectChanges();
+    const requestId = ++this.caseStatusRequestId;
+
+    this.dashboardService.getCaseStatus(normalizedPath)
+      .pipe(
+        finalize(() => {
+          if (this.casePath === normalizedPath && this.caseStatusRequestId === requestId) {
+            this.isCaseStatusLoading = false;
+            this.changeDetectorRef.detectChanges();
+          }
+        })
+      )
+      .subscribe({
+        next: (status) => {
+          if (this.casePath === normalizedPath && this.caseStatusRequestId === requestId) {
+            this.caseStatus = { ...status };
+            this.changeDetectorRef.detectChanges();
+          }
+        },
+        error: (error) => {
+          console.error('[Layout] Error loading case status:', error);
+          if (this.casePath === normalizedPath && this.caseStatusRequestId === requestId) {
+            this.caseStatus = null;
+            this.changeDetectorRef.detectChanges();
+          }
+        }
+      });
   }
 
 }

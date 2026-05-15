@@ -1,8 +1,9 @@
-import { Component, EventEmitter, Input, Output, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { CommonModule, JsonPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DrawMode } from '../../app';
+import { CaseStatusResponse } from '../../services/dashboard.service';
 
 @Component({
   selector: 'app-sidebar',
@@ -11,14 +12,18 @@ import { DrawMode } from '../../app';
   templateUrl: './sidebar.html',
   styleUrl: './sidebar.css'
 })
-export class Sidebar implements OnChanges {
+export class Sidebar {
   @Input() casePath: string = '';
+  @Input() caseStatus: CaseStatusResponse | null = null;
+  @Input() isCaseStatusLoading = false;
   @Input() drawnGeometries: Record<string, any>[] = [];
 
   @Output() layerSelected = new EventEmitter<string>();
   @Output() drawModeChange = new EventEmitter<DrawMode>();
   @Output() clearDrawing = new EventEmitter<void>();
   @Output() caseCreated = new EventEmitter<string>();
+  @Output() refreshStatusRequested = new EventEmitter<void>();
+  @Output() actionCompletedOk = new EventEmitter<string | undefined>();
 
   result: any = null;
   error: any = null;
@@ -27,53 +32,10 @@ export class Sidebar implements OnChanges {
 
   caseName = '';
 
-  hasDomain = false;
-  hasWeatherData = false;
-  hasDem = false;
-  hasApoyos = false;
-  hasVanos = false;
-  readyForWindNinja = false;
-
   constructor(private http: HttpClient) {}
 
-  ngOnChanges(changes: SimpleChanges) {
-    if (changes['casePath']) {
-      this.refreshCaseStatus();
-    }
-  }
-
-  refreshCaseStatus() {
-    if (!this.casePath) {
-      this.hasDomain = false;
-      this.hasWeatherData = false;
-      this.hasDem = false;
-      this.hasApoyos = false;
-      this.hasVanos = false;
-      this.readyForWindNinja = false;
-      return;
-    }
-
-    this.http.post<any>('http://127.0.0.1:8000/api/v1/case/status', {
-      case_path: this.casePath
-    }).subscribe({
-      next: (res) => {
-        this.hasDomain = !!res.has_domain;
-        this.hasWeatherData = !!res.has_weather;
-        this.hasDem = !!res.has_dem;
-        this.hasApoyos = !!res.has_apoyos;
-        this.hasVanos = !!res.has_vanos;
-        this.readyForWindNinja = !!res.ready_for_windninja;
-      },
-      error: (err) => {
-        console.error('Error consultando estado del caso:', err);
-        this.hasDomain = false;
-        this.hasWeatherData = false;
-        this.hasDem = false;
-        this.hasApoyos = false;
-        this.hasVanos = false;
-        this.readyForWindNinja = false;
-      }
-    });
+  onRefreshStatusClick(): void {
+    this.refreshStatusRequested.emit();
   }
 
   startSupportDraw() {
@@ -135,20 +97,17 @@ export class Sidebar implements OnChanges {
 
       if (lastResponse?.case_path) {
         this.caseCreated.emit(lastResponse.case_path);
+      } else {
+        this.actionCompletedOk.emit(this.casePath || undefined);
       }
 
       this.layerSelected.emit('apoyos');
       this.clearDrawing.emit();
 
-      setTimeout(() => {
-        this.refreshCaseStatus();
-      }, 100);
-
       this.loading = false;
     } catch (err) {
       this.error = err;
       this.loading = false;
-      this.refreshCaseStatus();
     }
   }
 
@@ -208,12 +167,11 @@ export class Sidebar implements OnChanges {
       next: (res) => {
         this.result = res;
         this.loading = false;
-        this.refreshCaseStatus();
+        this.actionCompletedOk.emit(this.casePath);
       },
       error: (err) => {
         this.error = err;
         this.loading = false;
-        this.refreshCaseStatus();
       }
     });
   }
@@ -230,7 +188,7 @@ export class Sidebar implements OnChanges {
       next: (res) => {
         this.result = res;
         this.loading = false;
-        this.refreshCaseStatus();
+        this.actionCompletedOk.emit(this.casePath);
 
         if (endpoint === '/generate-dem') {
           this.layerSelected.emit('dominio');
@@ -239,7 +197,6 @@ export class Sidebar implements OnChanges {
       error: (err) => {
         this.error = err;
         this.loading = false;
-        this.refreshCaseStatus();
       }
     });
   }
@@ -256,13 +213,12 @@ export class Sidebar implements OnChanges {
       next: (res) => {
         this.result = res;
         this.loading = false;
-        this.refreshCaseStatus();
+        this.actionCompletedOk.emit(this.casePath);
         this.layerSelected.emit('dominio');
       },
       error: (err) => {
         this.error = err;
         this.loading = false;
-        this.refreshCaseStatus();
       }
     });
   }
@@ -279,12 +235,11 @@ export class Sidebar implements OnChanges {
       next: (res) => {
         this.result = res;
         this.loading = false;
-        this.refreshCaseStatus();
+        this.actionCompletedOk.emit(this.casePath);
       },
       error: (err) => {
         this.error = err;
         this.loading = false;
-        this.refreshCaseStatus();
       }
     });
   }

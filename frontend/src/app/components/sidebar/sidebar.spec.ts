@@ -27,11 +27,11 @@ describe('Sidebar', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should reset status when no casePath', () => {
-    component.casePath = '';
-    component.refreshCaseStatus();
-    expect(component.hasDomain).toBeFalsy();
-    expect(component.readyForWindNinja).toBeFalsy();
+  it('should emit refresh status requests', () => {
+    const spy = vi.fn();
+    component.refreshStatusRequested.subscribe(spy);
+    component.onRefreshStatusClick();
+    expect(spy).toHaveBeenCalledOnce();
   });
 
   it('should emit draw mode changes', () => {
