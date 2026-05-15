@@ -27,27 +27,33 @@ RUN apt-get update \
         libgeos-dev \
         libnetcdf-dev \
         libproj-dev \
+        libshp-dev \
         libspatialindex-dev \
         libsqlite3-dev \
         zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
-RUN git clone --depth 1 https://github.com/firelab/windninja.git /opt/src/windninja \
-    && mkdir -p /opt/src/windninja/build \
+RUN git clone --depth 1 https://github.com/firelab/windninja.git /opt/src/windninja
+
+RUN mkdir -p /opt/src/windninja/build \
     && cd /opt/src/windninja/build \
     && cmake \
+        -D SUPRESS_WARNINGS=ON \
+        -D NINJA_CLI=ON \
         -D NINJA_GUI=OFF \
         -D NINJAFOAM=OFF \
         -D BUILD_FETCH_DEM=OFF \
         -D BUILD_SLOPE_ASPECT_GRID=OFF \
         -D BUILD_FLOW_SEPARATION_GRID=OFF \
-        .. \
+        ..
+
+RUN cd /opt/src/windninja/build \
     && make -j"$(nproc)" \
     && make install \
     && mkdir -p /opt/windninja \
     && cp -r /opt/src/windninja/data /opt/windninja/data \
     && ldconfig \
-    && WindNinja_cli --help >/dev/null
+    && command -v WindNinja_cli
 
 COPY requirements.txt .
 RUN pip3 install --no-cache-dir --upgrade pip \

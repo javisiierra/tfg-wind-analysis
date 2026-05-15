@@ -21,3 +21,4 @@ xlrd
 python-dotenv
 pytest
 httpx
+tomli

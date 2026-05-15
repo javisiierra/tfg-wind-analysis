@@ -5,7 +5,10 @@ from pathlib import Path
 from typing import Any, Optional
 
 import geopandas as gpd
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
 
 from app.core.paths import join_base
 
