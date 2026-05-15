@@ -69,6 +69,24 @@ def test_fetch_dem_reports_missing_srtm_api_key(monkeypatch):
         dem.fetch_dem_from_bounds(cfg, 1, 2, 3, 4)
 
 
+def test_fetch_dem_reports_bad_srtm_api_key(monkeypatch):
+    monkeypatch.setattr(dem, "utm_rect_to_fetch_dem_bbox", lambda *_: (50, 2, 40, -3))
+    monkeypatch.setattr(dem.shutil, "which", lambda name: "/usr/local/bin/fetch_dem")
+
+    def fake_run(cmd, capture_output, text, env):
+        return SimpleNamespace(
+            returncode=252,
+            stdout="",
+            stderr="ERROR 1: HTTP error code : 401\nERROR 1: Failed to download file, bad API key.",
+        )
+
+    monkeypatch.setattr(dem.subprocess, "run", fake_run)
+    cfg = SimpleNamespace(out_mdt_tif="/tmp/mdt.tif")
+
+    with pytest.raises(RuntimeError, match="OpenTopography rechazo la API key"):
+        dem.fetch_dem_from_bounds(cfg, 1, 2, 3, 4)
+
+
 def test_fetch_dem_reports_missing_binary(monkeypatch):
     monkeypatch.setattr(dem, "utm_rect_to_fetch_dem_bbox", lambda *_: (50, 2, 40, -3))
     monkeypatch.setattr(dem.shutil, "which", lambda name: None)
