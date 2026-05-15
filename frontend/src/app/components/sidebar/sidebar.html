@@ -1,7 +1,6 @@
 <div class="sidebar">
   <section class="sidebar-card">
     <div class="section-header">
-      <span class="section-icon">📍</span>
       <div>
         <h3>Dibujar apoyos</h3>
         <p>Añade apoyos manualmente sobre el mapa</p>
@@ -27,7 +26,6 @@
       Limpiar apoyos dibujados
     </button>
 
-    <!-- 🔥 CAMBIO IMPORTANTE -->
     <div class="geometry-pill" [class.ok]="drawnGeometries.length">
       {{
         drawnGeometries.length
@@ -36,7 +34,6 @@
       }}
     </div>
 
-    <!-- 🔥 CAMBIO IMPORTANTE -->
     <button
       class="btn primary"
       (click)="saveCase()"
@@ -48,7 +45,6 @@
 
   <section class="sidebar-card">
     <div class="section-header">
-      <span class="section-icon">✅</span>
       <div>
         <h3>Estado del caso</h3>
         <p>Validación de entradas necesarias</p>
@@ -94,7 +90,6 @@
 
   <section class="sidebar-card">
     <div class="section-header">
-      <span class="section-icon">⚙️</span>
       <div>
         <h3>Ejecución</h3>
         <p>Pipeline de preparación y simulación</p>
@@ -124,7 +119,6 @@
 
   <section class="sidebar-card">
     <div class="section-header">
-      <span class="section-icon">🗺️</span>
       <div>
         <h3>Capas</h3>
         <p>Visualización en el mapa</p>
@@ -141,7 +135,6 @@
 
   <section class="sidebar-card">
     <div class="section-header">
-      <span class="section-icon">📊</span>
       <div>
         <h3>Análisis</h3>
         <p>Postprocesado de resultados</p>
