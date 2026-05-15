@@ -99,9 +99,6 @@
       </ng-template>
     </div>
 
-    <button class="btn ghost" (click)="onRefreshStatusClick()" [disabled]="!casePath || isCaseStatusLoading">
-      Refrescar estado
-    </button>
   </section>
 
   <section class="sidebar-card">
@@ -151,27 +148,6 @@
       <button class="layer-btn" (click)="showVanos()">Vanos</button>
       <button class="layer-btn" (click)="showWorstSupports()">Vanos críticos</button>
     </div>
-  </section>
-
-  <section class="sidebar-card">
-    <div class="section-header">
-      <div>
-        <h3>Análisis</h3>
-        <p>Postprocesado de resultados</p>
-      </div>
-    </div>
-
-    <button class="btn secondary" (click)="runRename()" [disabled]="!casePath">
-      Run Rename
-    </button>
-
-    <button class="btn secondary" (click)="runWindRose()" [disabled]="!casePath">
-      Run Wind Rose
-    </button>
-
-    <button class="btn secondary" (click)="runWorstSupports()" [disabled]="!casePath">
-      Calcular 4 vanos críticos
-    </button>
   </section>
 
   <section *ngIf="loading || result || error" class="sidebar-card output-card">
