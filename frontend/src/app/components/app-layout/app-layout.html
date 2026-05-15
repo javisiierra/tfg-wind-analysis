@@ -1,7 +1,9 @@
 <div class="app-shell">
   <header class="app-header">
     <app-topbar
-      (caseChange)="onCasePathChange($event)"
+      [casePath]="casePath"
+      (folderSelected)="onFolderSelected($event)"
+      (casePrepared)="onCaseActionCompleted($event)"
       (pipelineStatusChange)="onPipelineStatusChange($event)">
     </app-topbar>
   </header>
@@ -9,11 +11,15 @@
   <aside class="app-sidebar">
     <app-sidebar
       [casePath]="casePath"
+      [caseStatus]="caseStatus"
+      [isCaseStatusLoading]="isCaseStatusLoading"
       [drawnGeometries]="drawnGeometries"
       (layerSelected)="onLayerSelected($event)"
       (drawModeChange)="onDrawModeChange($event)"
       (clearDrawing)="onClearDrawing()"
-      (caseCreated)="onCaseCreated($event)">
+      (caseCreated)="onCaseCreated($event)"
+      (refreshStatusRequested)="refreshActiveCaseStatus()"
+      (actionCompletedOk)="onCaseActionCompleted($event)">
     </app-sidebar>
   </aside>
 
