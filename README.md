@@ -88,7 +88,7 @@ Para construir el entorno con WindNinja dentro del backend:
 docker compose -f docker-compose.yml -f docker-compose.windninja.yml up --build
 ```
 
-La primera construccion puede tardar bastante porque compila WindNinja y sus dependencias dentro de la imagen. Para desarrollo normal sin ejecutar WindNinja puedes seguir usando:
+Esta imagen compila una version minima de `WindNinja_cli`, sin GUI y sin NinjaFOAM/OpenFOAM, porque el proyecto usa `initialization_method = pointInitialization` y salida ASCII. Para desarrollo normal sin ejecutar WindNinja puedes seguir usando:
 
 ```bash
 docker compose up --build
