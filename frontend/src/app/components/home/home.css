@@ -1,0 +1,143 @@
+.home-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 100vh;
+  background: #020617;
+  color: #e2e8f0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+.home-header {
+  text-align: center;
+  padding: 60px 20px 40px;
+  background: #0f172a;
+  border-bottom: 1px solid #1e293b;
+}
+
+.home-header h1 {
+  font-size: 48px;
+  font-weight: 800;
+  margin: 0 0 10px;
+  color: #f8fafc;
+}
+
+.subtitle {
+  font-size: 18px;
+  color: #94a3b8;
+  margin: 0;
+  font-weight: 400;
+}
+
+.home-content {
+  flex: 1;
+  padding: 60px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.info-section {
+  text-align: center;
+  margin-bottom: 60px;
+  max-width: 760px;
+}
+
+.info-section h2 {
+  font-size: 32px;
+  margin-bottom: 20px;
+  color: #f8fafc;
+}
+
+.info-section p {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #cbd5e1;
+}
+
+.navigation-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 30px;
+  width: 100%;
+  max-width: 900px;
+}
+
+.nav-card {
+  background: #0f172a;
+  color: #e2e8f0;
+  border: 1px solid #1e293b;
+  border-radius: 14px;
+  padding: 40px 30px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .25);
+  display: flex;
+  flex-direction: column;
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+
+.nav-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, .35);
+}
+
+.nav-card h3 {
+  font-size: 24px;
+  margin: 0 0 15px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.nav-card p {
+  font-size: 15px;
+  line-height: 1.6;
+  margin-bottom: 25px;
+  flex: 1;
+  color: #94a3b8;
+}
+
+.btn {
+  display: inline-block;
+  padding: 12px 32px;
+  border-radius: 9px;
+  font-weight: 700;
+  text-decoration: none;
+  text-align: center;
+  cursor: pointer;
+  transition: all .2s ease;
+  border: 1px solid #334155;
+  font-size: 14px;
+  align-self: flex-start;
+}
+
+.btn-primary,
+.btn-secondary {
+  background: #2563eb;
+  color: white;
+}
+
+.btn-primary:hover,
+.btn-secondary:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+@media (max-width: 768px) {
+  .home-header h1 {
+    font-size: 32px;
+  }
+
+  .info-section h2 {
+    font-size: 24px;
+  }
+
+  .navigation-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .home-content {
+    padding: 40px 20px;
+  }
+}

@@ -1,0 +1,45 @@
+:host {
+  display: block;
+  width: 100%;
+  min-height: 100vh;
+  overflow: visible;
+}
+
+
+.technical-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #e2e8f0;
+  font-size: 13px;
+}
+
+.technical-details pre {
+  margin: 8px 0 0 0;
+  max-height: 150px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+}
+
+.technical-details.error {
+  border-color: #7f1d1d;
+  background: #1f0505;
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: 56px 240px minmax(0, 1fr) 100px;
+    grid-template-areas:
+      "header"
+      "sidebar"
+      "map"
+      "bottom";
+  }
+
+  .app-bottom-panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: auto;
+  }
+}

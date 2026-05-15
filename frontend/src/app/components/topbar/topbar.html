@@ -1,0 +1,31 @@
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-icon">🌬️</div>
+
+    <div class="brand-text">
+      <h1>WindNinja Input Builder</h1>
+      <span>Preparación Web-GIS de entradas geoespaciales</span>
+    </div>
+  </div>
+
+  <div class="case-control">
+    <input
+      [(ngModel)]="casePath"
+      placeholder="Ruta de la carpeta del caso"
+      title="Ruta de la carpeta del caso"
+    />
+
+    <button class="btn secondary" (click)="selectFolder()">
+      Seleccionar carpeta
+    </button>
+
+    <button class="btn primary" (click)="prepareCase()">
+      Preparar caso
+    </button>
+  </div>
+
+  <div class="system-status" [class.has-error]="error">
+    <span class="status-dot"></span>
+    <span>{{ error ? 'Error' : statusText ? statusText : 'Listo' }}</span>
+  </div>
+</div>

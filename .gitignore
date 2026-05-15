@@ -1,0 +1,82 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# =========================
+# FastAPI / Backend
+# =========================
+*.log
+out/
+backend/out/
+
+# Temporary/test/generated data
+tmp/
+temp/
+*.tmp
+
+# GIS / WindNinja generated outputs
+backend/OUT_WN/
+backend/OUT_WN_REN/
+backend/WR/
+backend/MDT_WN/
+backend/Weather_Input_Data/
+
+# Local test/generated cases
+backend/tests/tmp/
+backend/tests/.tmp/
+
+# =========================
+# Angular
+# =========================
+node_modules/
+dist/
+.angular/
+coverage/
+
+# Angular test artifacts
+*.tsbuildinfo
+
+# =========================
+# VSCode / IDE
+# =========================
+.vscode/
+.idea/
+
+# =========================
+# OS
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Environment / secrets
+# =========================
+.env
+.env.*
+!.env.example
+
+# Copernicus credentials
+.cdsapirc
+
+# =========================
+# Windows
+# =========================
+desktop.ini
