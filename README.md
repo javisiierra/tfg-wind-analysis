@@ -76,10 +76,20 @@ CDSAPI_KEY=<uid>:<api-key>
 
 ### DEM SRTM
 
-La descarga del DEM mediante `fetch_dem --src srtm` necesita una API key de OpenTopography. Configurala en `.env`:
+La fase `Generar DEM` (`POST /api/v1/domain/generate-dem`) descarga el modelo de elevacion SRTM usando `fetch_dem --src srtm`. Para que esa descarga funcione es necesaria una API key de OpenTopography.
+
+Crea una cuenta o genera la clave en OpenTopography y anadela al archivo `.env`:
 
 ```env
 CUSTOM_SRTM_API_KEY=<opentopography-api-key>
+```
+
+El backend pasa esta variable al ejecutable `fetch_dem` dentro del contenedor. Si falta o esta vacia, la generacion del DEM fallara al intentar descargar SRTM.
+
+Despues de crear o modificar `.env`, reinicia los contenedores para que Docker Compose cargue la variable:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.windninja.yml up --build
 ```
 
 ### WindNinja
