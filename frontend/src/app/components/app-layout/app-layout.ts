@@ -107,10 +107,6 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
     this.loadCaseStatus(this.casePath);
   }
 
-  onCasePathChange(path: string): void {
-    this.onFolderSelected(path);
-  }
-
   onLayerSelected(layer: string): void {
     this.mapContextService.setSelectedLayer(layer);
   }
