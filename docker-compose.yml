@@ -8,6 +8,7 @@ services:
       CASES_ROOT: "/data"
       HOST_CASES_ROOT: "${HOST_CASES_ROOT:-C:/Datos_TFG}"
       WINDNINJA_CLI: "${WINDNINJA_CLI:-WindNinja_cli}"
+      CUSTOM_SRTM_API_KEY: "${CUSTOM_SRTM_API_KEY:-}"
       CDSAPI_URL: "${CDSAPI_URL:-}"
       CDSAPI_KEY: "${CDSAPI_KEY:-}"
     ports:
