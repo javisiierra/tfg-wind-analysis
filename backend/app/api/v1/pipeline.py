@@ -990,6 +990,8 @@ def run_windninja_api(request: PipelineRequest):
 
     except HTTPException:
         raise
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error ejecutando WindNinja: {e}")
 

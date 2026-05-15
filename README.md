@@ -78,7 +78,21 @@ CDSAPI_KEY=<uid>:<api-key>
 
 El backend lee el ejecutable desde la variable `WINDNINJA_CLI`.
 
-La imagen no instala WindNinja automaticamente. Las fases que ejecutan WindNinja requieren anadirlo a la imagen backend o usar una imagen base que ya lo incluya.
+La imagen no instala WindNinja automaticamente. Las fases que ejecutan WindNinja requieren anadir WindNinja para Linux a la imagen backend o usar una imagen base que ya lo incluya.
+
+La instalacion de Windows, por ejemplo `C:/WindNinja/WindNinja-3.12.1/bin/WindNinja_cli.exe`, no se puede ejecutar directamente desde el contenedor Linux.
+
+Para construir el entorno con WindNinja dentro del backend:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.windninja.yml up --build
+```
+
+La primera construccion puede tardar bastante porque compila WindNinja y sus dependencias dentro de la imagen. Para desarrollo normal sin ejecutar WindNinja puedes seguir usando:
+
+```bash
+docker compose up --build
+```
 
 ---
 

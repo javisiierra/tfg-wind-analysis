@@ -1,0 +1,78 @@
+FROM ubuntu:20.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV WM_PROJECT_INST_DIR=/opt
+ENV WINDNINJA_DATA=/opt/src/windninja/data
+ENV WINDNINJA_CLI=WindNinja_cli
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        software-properties-common \
+        wget \
+        gnupg2 \
+        cmake \
+        git \
+        apt-transport-https \
+        ca-certificates \
+        sudo \
+        build-essential \
+        pkg-config \
+        g++ \
+        libboost-program-options-dev \
+        libboost-date-time-dev \
+        libboost-test-dev \
+        python3 \
+        python3-pip \
+        python3-dev \
+        gdal-bin \
+        libgdal-dev \
+        libgeos-dev \
+        libproj-dev \
+        libspatialindex-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN git clone --depth 1 https://github.com/firelab/windninja.git /opt/src/windninja \
+    && cd /opt/src/windninja/scripts \
+    && ./build_deps_docker.sh \
+    && mkdir -p /opt/src/windninja/build \
+    && cd /opt/src/windninja/build \
+    && cmake \
+        -D SUPRESS_WARNINGS=ON \
+        -D NINJAFOAM=ON \
+        -D BUILD_FETCH_DEM=ON \
+        -D BUILD_SLOPE_ASPECT_GRID=ON \
+        -D BUILD_FLOW_SEPARATION_GRID=ON \
+        -D NINJA_GUI=OFF \
+        .. \
+    && make -j"$(nproc)" \
+    && make install \
+    && ldconfig
+
+RUN . /opt/openfoam8/etc/bashrc \
+    && mkdir -p "$FOAM_RUN/../applications" \
+    && cp -r /opt/src/windninja/src/ninjafoam/8/* "$FOAM_RUN/../applications" \
+    && cd "$FOAM_RUN/../applications" \
+    && sed -i "s|export WM_PROJECT_INST_DIR=|export WM_PROJECT_INST_DIR=/opt|g" /opt/openfoam8/etc/bashrc \
+    && sed -i "s|export WM_PROJECT_DIR=\$WM_PROJECT_INST_DIR/openfoam8|export WM_PROJECT_DIR=/opt/openfoam8|g" /opt/openfoam8/etc/bashrc \
+    && . /opt/openfoam8/etc/bashrc \
+    && wmake libso \
+    && cd utility/applyInit \
+    && wmake \
+    && cp "$FOAM_RUN/../platforms/linux64GccDPInt32Opt/lib/libWindNinja.so" /opt/openfoam8/platforms/linux64GccDPInt32Opt/lib/ \
+    && cp "$FOAM_RUN/../platforms/linux64GccDPInt32Opt/bin/applyInit" /opt/openfoam8/platforms/linux64GccDPInt32Opt/bin/ \
+    && chmod 644 /opt/openfoam8/platforms/linux64GccDPInt32Opt/lib/libWindNinja.so \
+    && chmod 755 /opt/openfoam8/platforms/linux64GccDPInt32Opt/bin/applyInit
+
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir --upgrade pip \
+    && pip3 install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
