@@ -18,6 +18,7 @@ export class MapWrapperComponent implements OnInit, OnDestroy {
   layerReloadToken: number = 0;
   drawMode: DrawMode = 'none';
   clearDrawToken: number = 0;
+  layerRefreshToken: number = 0;
 
   private destroy$ = new Subject<void>();
 
@@ -52,6 +53,12 @@ export class MapWrapperComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe(token => {
         this.clearDrawToken = token;
+      });
+
+    this.mapContextService.layerRefreshToken$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(token => {
+        this.layerRefreshToken = token;
       });
   }
 

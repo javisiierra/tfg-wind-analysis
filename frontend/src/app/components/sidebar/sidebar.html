@@ -149,7 +149,7 @@
       <button class="layer-btn" (click)="showDominio()">Dominio</button>
       <button class="layer-btn" (click)="showApoyos()">Apoyos</button>
       <button class="layer-btn" (click)="showVanos()">Vanos</button>
-      <button class="layer-btn" (click)="showWorstSupports()">Peores apoyos</button>
+      <button class="layer-btn" (click)="showWorstSupports()">Vanos críticos</button>
     </div>
   </section>
 
@@ -170,13 +170,17 @@
     </button>
 
     <button class="btn secondary" (click)="runWorstSupports()" [disabled]="!casePath">
-      Calcular 4 peores apoyos
+      Calcular 4 vanos críticos
     </button>
   </section>
 
   <section *ngIf="loading || result || error" class="sidebar-card output-card">
     <div *ngIf="loading" class="loading-box">
       Ejecutando {{ currentAction }}...
+    </div>
+
+    <div *ngIf="userMessage" class="loading-box">
+      {{ userMessage }}
     </div>
 
     <details *ngIf="result">
