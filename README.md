@@ -1,100 +1,90 @@
 # TFG - Wind Analysis Web Platform
 
-Aplicación web para el análisis de viento sobre líneas eléctricas mediante simulación con WindNinja, combinando procesamiento geoespacial en FastAPI y visualización interactiva en Angular + OpenLayers.
+Aplicacion web para el analisis de viento sobre lineas electricas mediante simulacion con WindNinja, combinando procesamiento geoespacial en FastAPI y visualizacion interactiva en Angular + OpenLayers.
 
 ---
 
-## Descripción
+## Descripcion
 
 Este proyecto permite:
 
-- Procesar datos geoespaciales de una línea eléctrica.
+- Procesar datos geoespaciales de una linea electrica.
 - Generar modelos de terreno (DEM).
 - Ejecutar simulaciones de viento con WindNinja.
-- Analizar resultados (wind rose, perfil longitudinal, spans y apoyos críticos).
-- Consultar y procesar series meteorológicas ERA5 (descarga + análisis).
+- Analizar resultados: wind rose, perfil longitudinal, spans y apoyos criticos.
+- Consultar y procesar series meteorologicas ERA5.
 - Visualizar todo en un mapa interactivo web.
 
-El sistema está diseñado para funcionar a partir de una carpeta de caso, donde se encuentran todos los datos necesarios.
+El sistema funciona a partir de una carpeta de caso, donde se encuentran todos los datos necesarios.
 
 ---
 
 ## Arquitectura
 
-El proyecto está dividido en dos partes principales:
+El proyecto esta dividido en dos partes principales:
 
-- `backend/` → API FastAPI + pipeline de procesamiento + servicios ERA5.
-- `frontend/` → Aplicación Angular + visualización web.
+- `backend/`: API FastAPI + pipeline de procesamiento + servicios ERA5.
+- `frontend/`: aplicacion Angular + visualizacion web.
 
 ---
 
 ## Requisitos
 
-### Backend
+- Docker Desktop.
+- Una carpeta local con los casos del proyecto.
 
-- Python 3.10+
-- Dependencias Python en `backend/requirements.txt`
-- WindNinja instalado y disponible en el sistema
-
-Instalación:
-
-```bash
-cd backend
-pip install -r requirements.txt
-```
-
-### Frontend
-
-- Node.js 18+
-- Angular CLI
-
-Instalación:
-
-```bash
-cd frontend
-npm install
-```
+El flujo soportado del proyecto es Docker Compose. No se mantiene como flujo principal la ejecucion local separada de backend y frontend.
 
 ---
 
-## Configuración ERA5 (Copernicus CDS)
+## Configuracion
 
-Para usar las funcionalidades ERA5 del backend necesitas credenciales de Copernicus CDS (`cdsapi`).
+### Carpeta de casos
 
-En Windows, crea el archivo:
+Crea un archivo `.env` a partir de `.env.example` e indica donde estan los casos en tu ordenador:
 
-`C:\Users\<usuario>\.cdsapirc`
+```env
+HOST_CASES_ROOT=C:\Datos_TFG
+```
 
-Con contenido equivalente a:
+Cada persona puede usar su propia ruta local, por ejemplo:
+
+```env
+HOST_CASES_ROOT=D:\TFG\Casos
+```
+
+Dentro del contenedor esa carpeta siempre se monta como:
 
 ```text
-url: https://cds.climate.copernicus.eu/api
-key: <uid>:<api-key>
+/data
 ```
 
-También puedes configurar variables de entorno (`CDSAPI_URL`, `CDSAPI_KEY`), pero la forma recomendada para desarrollo local sigue siendo `.cdsapirc`.
+Por eso la aplicacion usa rutas internas como:
+
+```text
+/data/NombreDelCaso
+```
+
+### ERA5
+
+Para usar las funcionalidades ERA5 del backend necesitas credenciales de Copernicus CDS (`cdsapi`). Configuralas en `.env`:
+
+```env
+CDSAPI_URL=https://cds.climate.copernicus.eu/api
+CDSAPI_KEY=<uid>:<api-key>
+```
+
+### WindNinja
+
+El backend lee el ejecutable desde la variable `WINDNINJA_CLI`.
+
+La imagen no instala WindNinja automaticamente. Las fases que ejecutan WindNinja requieren anadirlo a la imagen backend o usar una imagen base que ya lo incluya.
 
 ---
 
-## Ejecución
+## Ejecucion
 
-### Backend
-
-```bash
-cd backend
-uvicorn app.main:app --reload
-```
-
-### Frontend
-
-```bash
-cd frontend
-ng serve
-```
-
-### Docker
-
-Para levantar el backend y el frontend en contenedores:
+Para levantar el backend y el frontend:
 
 ```bash
 docker compose up --build
@@ -104,7 +94,7 @@ Servicios publicados:
 
 - Frontend Angular: `http://localhost:4200`
 - Backend FastAPI: `http://localhost:8000`
-- Documentación API: `http://localhost:8000/docs`
+- Documentacion API: `http://localhost:8000/docs`
 
 Para parar el entorno:
 
@@ -112,42 +102,38 @@ Para parar el entorno:
 docker compose down
 ```
 
-Si necesitas credenciales ERA5, copia `.env.example` a `.env` y completa:
+---
 
-```bash
-CDSAPI_URL=https://cds.climate.copernicus.eu/api
-CDSAPI_KEY=<uid>:<api-key>
-```
+## Uso basico
 
-Nota sobre WindNinja: el backend queda preparado para leer el ejecutable desde la variable `WINDNINJA_CLI`. La imagen no instala WindNinja automáticamente, así que las fases que ejecutan WindNinja requieren añadirlo a la imagen o usar una imagen base que ya lo incluya.
+1. Configura `HOST_CASES_ROOT` en `.env` apuntando a la carpeta local donde estan los casos.
+2. Levanta la aplicacion con `docker compose up --build`.
+3. Selecciona un caso desde la interfaz.
+4. Ejecuta las fases desde la interfaz.
+5. Visualiza capas y resultados en el mapa/dashboard.
 
 ---
 
-## Uso básico
+## Rutas API
 
-1. Introducir ruta del caso (ejemplo):
-   `C:\TFG\datos\Corredoria_Grado_1_y_2`
-2. Ejecutar fases desde la interfaz.
-3. Visualizar capas y resultados en el mapa/dashboard.
-
----
-
-## Rutas API: Dashboard vs Pipeline
-
-- **Dashboard-only** (`/api/v1/dashboard/*`):
+- Dashboard:
   - `POST /api/v1/dashboard/meteo-summary`
   - `POST /api/v1/dashboard/wind-timeseries`
   - `POST /api/v1/dashboard/wind-rose`
 
-- **Pipeline WindNinja** (`/api/v1/*` en `pipeline.py`):
-  - Endpoints de importación de caso, generación de dominio, DEM, apoyos, escenarios y ejecución WindNinja.
-  - Se mantienen separados de dashboard para no introducir cambios funcionales directos en el flujo crítico de WindNinja.
+- Pipeline WindNinja:
+  - `POST /api/v1/case/import-folder`
+  - `POST /api/v1/case/status`
+  - `POST /api/v1/domain/generate-from-supports`
+  - `POST /api/v1/domain/generate-dem`
+  - `POST /api/v1/domain/generate-weather`
+  - `POST /api/v1/pipeline/run-windninja`
 
 ---
 
 ## Estado
 
-Versión 1.1.0 - Backend reproducible con `requirements.txt` y documentación ERA5 actualizada.
+Version 1.1.0 - Entorno Docker reproducible para backend y frontend.
 
 ---
 
