@@ -15,6 +15,7 @@ import { takeUntil } from 'rxjs/operators';
 export class MapWrapperComponent implements OnInit, OnDestroy {
   casePath: string = '';
   selectedLayer: string = '';
+  layerReloadToken: number = 0;
   drawMode: DrawMode = 'none';
   clearDrawToken: number = 0;
 
@@ -33,6 +34,12 @@ export class MapWrapperComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe(layer => {
         this.selectedLayer = layer;
+      });
+
+    this.mapContextService.layerReloadToken$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(token => {
+        this.layerReloadToken = token;
       });
 
     this.mapContextService.drawMode$

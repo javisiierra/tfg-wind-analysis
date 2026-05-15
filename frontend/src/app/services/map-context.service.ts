@@ -9,12 +9,14 @@ export type DrawMode = 'none' | 'support';
 export class MapContextService {
   private casePathSubject = new BehaviorSubject<string>('');
   private selectedLayerSubject = new BehaviorSubject<string>('');
+  private layerReloadTokenSubject = new BehaviorSubject<number>(0);
   private drawModeSubject = new BehaviorSubject<DrawMode>('none');
   private clearDrawTokenSubject = new BehaviorSubject<number>(0);
   private drawnGeometriesSubject = new BehaviorSubject<Record<string, any>[]>([]);
 
   casePath$ = this.casePathSubject.asObservable();
   selectedLayer$ = this.selectedLayerSubject.asObservable();
+  layerReloadToken$ = this.layerReloadTokenSubject.asObservable();
   drawMode$ = this.drawModeSubject.asObservable();
   clearDrawToken$ = this.clearDrawTokenSubject.asObservable();
   drawnGeometries$ = this.drawnGeometriesSubject.asObservable();
@@ -27,6 +29,10 @@ export class MapContextService {
 
   setSelectedLayer(layer: string): void {
     this.selectedLayerSubject.next(layer);
+  }
+
+  reloadSelectedLayer(): void {
+    this.layerReloadTokenSubject.next(this.layerReloadTokenSubject.value + 1);
   }
 
   setDrawMode(mode: DrawMode): void {

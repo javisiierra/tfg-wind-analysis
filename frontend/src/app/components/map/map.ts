@@ -38,6 +38,7 @@ import Geometry from 'ol/geom/Geometry';
 export class MapComponent implements AfterViewInit, OnChanges {
   @Input() casePath: string = '';
   @Input() selectedLayer: string = '';
+  @Input() layerReloadToken = 0;
   @Input() drawMode: DrawMode = 'none';
   @Input() clearDrawToken = 0;
 
@@ -113,7 +114,7 @@ export class MapComponent implements AfterViewInit, OnChanges {
 
   ngOnChanges(changes: SimpleChanges): void {
     if (
-      changes['selectedLayer'] &&
+      (changes['selectedLayer'] || changes['layerReloadToken']) &&
       this.selectedLayer &&
       this.casePath &&
       this.displayLayer

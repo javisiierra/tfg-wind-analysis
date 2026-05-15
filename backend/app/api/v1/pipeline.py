@@ -14,6 +14,12 @@ from shapely.geometry import shape, LineString, box
 from app.core.config import load_config_from_case
 from app.core.paths import normalize_case_path
 from app.services.case_import.import_folder_service import import_folder_from_input_path
+from app.services.vanos.vanos_from_supports_service import (
+    VanosGenerationError,
+    canonical_vanos_geojson_path,
+    find_existing_vanos_path,
+    generate_vanos_from_supports as generate_vanos_from_supports_service,
+)
 from app.scripts.run_local_pipeline import (
     run_generate_scenarios,
     run_geometry_and_dem,
@@ -395,90 +401,16 @@ def health():
 )
 def generate_vanos_from_supports(request: PipelineRequest):
     try:
-        case_path = normalize_case_path(request.case_path)
-
-        supports_path = get_supports_shapefile_path(request.case_path)
-
-        if supports_path is None or not supports_path.exists():
-            raise HTTPException(
-                status_code=400,
-                detail="No existen apoyos para generar vanos.",
-            )
-
-        gdf = gpd.read_file(supports_path)
-
-        if gdf.empty:
-            raise HTTPException(
-                status_code=400,
-                detail="El shapefile de apoyos está vacío.",
-            )
-
-        if gdf.crs is None:
-            gdf = gdf.set_crs(epsg=25830)
-
-        gdf = gdf.to_crs(epsg=25830)
-
-        if "sup_order" in gdf.columns:
-            gdf = gdf.sort_values("sup_order")
-        elif "support_order" in gdf.columns:
-            gdf = gdf.sort_values("support_order")
-        elif "support_or" in gdf.columns:
-            gdf = gdf.sort_values("support_or")
-
-        points = [
-            geom for geom in gdf.geometry
-            if geom is not None and geom.geom_type == "Point"
-        ]
-
-        if len(points) < 2:
-            raise HTTPException(
-                status_code=400,
-                detail="Se necesitan al menos 2 apoyos para generar vanos.",
-            )
-
-        records = []
-
-        for i in range(len(points) - 1):
-            p1 = points[i]
-            p2 = points[i + 1]
-
-            dx = p2.x - p1.x
-            dy = p2.y - p1.y
-
-            direccion = (np.degrees(np.arctan2(dx, dy)) + 360.0) % 360.0
-
-            records.append({
-                "id": f"V-{i+1}",
-                "from_ap": f"AP-{i+1}",
-                "to_ap": f"AP-{i+2}",
-                "direccion": float(direccion),
-                "geometry": LineString([p1, p2]),
-            })
-
-        vanos_gdf = gpd.GeoDataFrame(
-            records,
-            geometry="geometry",
-            crs="EPSG:25830",
-        )
-
-        out_path = case_path / "Calculos" / f"{case_path.name}_vanos.shp"
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # limpiar shapefile previo
-        for ext in [".shp", ".shx", ".dbf", ".prj", ".cpg"]:
-            p = out_path.with_suffix(ext)
-            if p.exists():
-                p.unlink()
-
-        vanos_gdf.to_file(out_path, driver="ESRI Shapefile", encoding="UTF-8")
-
         return {
-            "status": "ok",
             "case_path": request.case_path,
-            "vanos_shp": str(out_path),
-            "n_vanos": len(vanos_gdf),
+            **generate_vanos_from_supports_service(
+                request.case_path,
+                load_cfg_from_case_or_raise(request.case_path),
+            ),
         }
 
+    except VanosGenerationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
@@ -490,6 +422,16 @@ def generate_vanos_from_supports(request: PipelineRequest):
                 "traceback": traceback.format_exc(),
             },
         )
+
+
+@router.post(
+    "/vanos/generate-from-supports",
+    tags=["Vanos"],
+    summary="Generar vanos desde apoyos",
+    description="Genera la capa de vanos en SHP/vanos.shp y SHP/vanos.geojson si todavía no existe.",
+)
+def generate_vanos_from_supports_endpoint(request: PipelineRequest):
+    return generate_vanos_from_supports(request)
 
 @router.post(
     "/supports/create",
@@ -597,8 +539,9 @@ def create_support(request: SupportCreateRequest):
             driver="GeoJSON",
         )
 
-        # Generar vanos/línea entre apoyos consecutivos
-        vanos_path = case_path / "Calculos" / f"{case_path.name}_vanos.shp"
+        # Mantener actualizada la capa de vanos que consume /layers/vanos.
+        vanos_path = case_path / "SHP" / "vanos.shp"
+        vanos_geojson_path = case_path / "SHP" / "vanos.geojson"
         vanos_path.parent.mkdir(parents=True, exist_ok=True)
 
         points = [
@@ -642,6 +585,7 @@ def create_support(request: SupportCreateRequest):
                 driver="ESRI Shapefile",
                 encoding="UTF-8",
             )
+            vanos_gdf.to_file(vanos_geojson_path, driver="GeoJSON")
 
         print("Guardado apoyo:", support_id)
         print("Total apoyos:", support_total)
@@ -1099,7 +1043,8 @@ def get_case_status(request: PipelineRequest):
         cfg.out_apoyos_shp is not None and Path(cfg.out_apoyos_shp).exists()
     ) or fallback_apoyos.exists()
 
-    has_vanos = cfg.out_vanos_shp is not None and Path(cfg.out_vanos_shp).exists()
+    vanos_path = find_existing_vanos_path(case_path, cfg)
+    has_vanos = vanos_path is not None
 
     return {
         "status": "ok",
@@ -1115,7 +1060,7 @@ def get_case_status(request: PipelineRequest):
             "dem": str(cfg.out_mdt_tif) if cfg.out_mdt_tif else None,
             "weather": str(cfg.in_weather_file) if cfg.in_weather_file else None,
             "apoyos": str(cfg.out_apoyos_shp) if cfg.out_apoyos_shp else str(fallback_apoyos),
-            "vanos": str(cfg.out_vanos_shp) if cfg.out_vanos_shp else None,
+            "vanos": str(vanos_path) if vanos_path else str(case_path / "SHP" / "vanos.shp"),
         },
     }
 
@@ -1156,10 +1101,14 @@ def get_apoyos_layer(request: PipelineRequest):
 def get_vanos_layer(request: PipelineRequest):
     cfg = load_cfg_from_case_or_raise(request.case_path)
 
-    if cfg.out_vanos_shp is None:
-        raise HTTPException(status_code=404, detail="No existe ruta configurada para vanos.")
+    shp_path = find_existing_vanos_path(request.case_path, cfg)
+    if shp_path is not None:
+        return shapefile_to_geojson_response(shp_path, "vanos")
 
-    return shapefile_to_geojson_response(Path(cfg.out_vanos_shp), "vanos")
+    return geojson_file_to_geojson_response(
+        canonical_vanos_geojson_path(request.case_path),
+        "vanos",
+    )
 
 
 @router.post(
