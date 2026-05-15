@@ -3,3 +3,38 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.windninja
+    container_name: tfg-backend
+    environment:
+      PYTHONUNBUFFERED: "1"
+      CASES_ROOT: "/data"
+      HOST_CASES_ROOT: "${HOST_CASES_ROOT}"
+      WINDNINJA_CLI: "${WINDNINJA_CLI:-WindNinja_cli}"
+      CUSTOM_SRTM_API_KEY: "${CUSTOM_SRTM_API_KEY:-}"
+      CDSAPI_URL: "${CDSAPI_URL:-}"
+      CDSAPI_KEY: "${CDSAPI_KEY:-}"
+    ports:
+      - "8000:8000"
+    volumes:
+      - type: bind
+        source: ./backend
+        target: /app
+      - type: bind
+        source: ${HOST_CASES_ROOT:-./data}
+        target: /data
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: tfg-frontend
+    depends_on:
+      - backend
+    ports:
+      - "4200:4200"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    command: npm start -- --host 0.0.0.0 --port 4200 --poll 2000
+
+volumes:
+  frontend_node_modules:

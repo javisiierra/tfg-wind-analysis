@@ -74,6 +74,14 @@ CDSAPI_URL=https://cds.climate.copernicus.eu/api
 CDSAPI_KEY=<uid>:<api-key>
 ```
 
+### DEM SRTM
+
+La descarga del DEM mediante `fetch_dem --src srtm` necesita una API key de OpenTopography. Configurala en `.env`:
+
+```env
+CUSTOM_SRTM_API_KEY=<opentopography-api-key>
+```
+
 ### WindNinja
 
 El backend lee el ejecutable desde la variable `WINDNINJA_CLI`.
@@ -88,7 +96,7 @@ Para construir el entorno con WindNinja dentro del backend:
 docker compose -f docker-compose.yml -f docker-compose.windninja.yml up --build
 ```
 
-Esta imagen compila una version minima de `WindNinja_cli`, sin GUI y sin NinjaFOAM/OpenFOAM, porque el proyecto usa `initialization_method = pointInitialization` y salida ASCII. Para desarrollo normal sin ejecutar WindNinja puedes seguir usando:
+Esta imagen compila WindNinja `3.12.1` en una version minima de `WindNinja_cli`, sin GUI y sin NinjaFOAM/OpenFOAM, porque el proyecto usa `initialization_method = pointInitialization` y salida ASCII. Para desarrollo normal sin ejecutar WindNinja puedes seguir usando:
 
 ```bash
 docker compose up --build
