@@ -6,7 +6,7 @@ services:
     environment:
       PYTHONUNBUFFERED: "1"
       CASES_ROOT: "/data"
-      HOST_CASES_ROOT: "${HOST_CASES_ROOT:-C:\\Datos_TFG}"
+      HOST_CASES_ROOT: "${HOST_CASES_ROOT:-C:/Datos_TFG}"
       WINDNINJA_CLI: "${WINDNINJA_CLI:-WindNinja_cli}"
       CDSAPI_URL: "${CDSAPI_URL:-}"
       CDSAPI_KEY: "${CDSAPI_KEY:-}"

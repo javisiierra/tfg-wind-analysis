@@ -80,7 +80,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   roseContainerId = 'wind-rose-chart';
   private destroy$ = new Subject<void>();
 
-  private readonly baseCasesPath = 'C:\\Datos_TFG';
+  private readonly baseCasesPath = '/data';
 
   constructor(
     private dashboardService: DashboardService,
@@ -123,7 +123,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   async selectFolderFromDashboard(): Promise<void> {
     try {
       const dirHandle = await (window as any).showDirectoryPicker();
-      const selectedPath = `${this.baseCasesPath}\\${dirHandle.name}`;
+      const selectedPath = `${this.baseCasesPath}/${dirHandle.name}`;
 
       this.casePath = selectedPath;
       this.mapContextService.setCasePath(selectedPath);

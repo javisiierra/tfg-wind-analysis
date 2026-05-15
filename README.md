@@ -44,7 +44,7 @@ El flujo soportado del proyecto es Docker Compose. No se mantiene como flujo pri
 Crea un archivo `.env` a partir de `.env.example` e indica donde estan los casos en tu ordenador:
 
 ```env
-HOST_CASES_ROOT=C:\Datos_TFG
+HOST_CASES_ROOT=C:/Datos_TFG
 ```
 
 Cada persona puede usar su propia ruta local, por ejemplo:
