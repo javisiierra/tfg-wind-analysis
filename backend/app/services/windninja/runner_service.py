@@ -13,7 +13,10 @@ from app.services.windninja.command_builder import (
 def run_windninja(cfg):
     base = Path(cfg.general_path)
 
-    wind_ninja_exe = r"C:\WindNinja\WindNinja-3.12.1\bin\WindNinja_cli"
+    wind_ninja_exe = os.getenv(
+        "WINDNINJA_CLI",
+        r"C:\WindNinja\WindNinja-3.12.1\bin\WindNinja_cli",
+    )
     wx_station_filename = join_base(base, cfg.in_weather_file)
     elevation_file = join_base(base, cfg.out_mdt_tif)
     path_output = join_base(base, cfg.out_wn)

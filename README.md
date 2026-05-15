@@ -92,6 +92,35 @@ cd frontend
 ng serve
 ```
 
+### Docker
+
+Para levantar el backend y el frontend en contenedores:
+
+```bash
+docker compose up --build
+```
+
+Servicios publicados:
+
+- Frontend Angular: `http://localhost:4200`
+- Backend FastAPI: `http://localhost:8000`
+- Documentación API: `http://localhost:8000/docs`
+
+Para parar el entorno:
+
+```bash
+docker compose down
+```
+
+Si necesitas credenciales ERA5, copia `.env.example` a `.env` y completa:
+
+```bash
+CDSAPI_URL=https://cds.climate.copernicus.eu/api
+CDSAPI_KEY=<uid>:<api-key>
+```
+
+Nota sobre WindNinja: el backend queda preparado para leer el ejecutable desde la variable `WINDNINJA_CLI`. La imagen no instala WindNinja automáticamente, así que las fases que ejecutan WindNinja requieren añadirlo a la imagen o usar una imagen base que ya lo incluya.
+
 ---
 
 ## Uso básico
