@@ -43,7 +43,7 @@ def fetch_dem_from_bounds(cfg, minx2, miny2, maxx2, maxy2):
         or env.get("OPENTOPOGRAPHY_API_KEY")
     )
     if srtm_api_key:
-        env["CUSTOM_SRTM_API_KEY"] = srtm_api_key
+        env["CUSTOM_SRTM_API_KEY"] = srtm_api_key.strip()
 
     p = subprocess.run(cmd, capture_output=True, text=True, env=env)
 
@@ -57,6 +57,12 @@ def fetch_dem_from_bounds(cfg, minx2, miny2, maxx2, maxy2):
             raise RuntimeError(
                 "fetch_dem no pudo descargar SRTM porque falta la API key de OpenTopography. "
                 "Configura CUSTOM_SRTM_API_KEY=<tu-api-key> en .env y reinicia el backend."
+            )
+        if "bad API key" in detail or "HTTP error code : 401" in detail:
+            raise RuntimeError(
+                "fetch_dem no pudo descargar SRTM porque OpenTopography rechazo la API key "
+                "(HTTP 401). Revisa que CUSTOM_SRTM_API_KEY sea una clave de OpenTopography "
+                "valida, sin comillas ni espacios, y reinicia/recrea el backend Docker."
             )
         raise RuntimeError(f"fetch_dem falló: {detail}")
 

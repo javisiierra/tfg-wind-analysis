@@ -12,6 +12,7 @@ def normalize_case_path(path: str | Path) -> Path:
     raw_path = str(path)
     cases_root = os.getenv("CASES_ROOT")
     host_cases_root = os.getenv("HOST_CASES_ROOT")
+    raw = Path(raw_path)
 
     if cases_root and host_cases_root:
         normalized_raw = raw_path.replace("\\", "/")
@@ -25,4 +26,7 @@ def normalize_case_path(path: str | Path) -> Path:
             relative = normalized_raw[len(host_prefix):]
             return Path(cases_root) / relative
 
-    return Path(raw_path)
+    if cases_root and not raw.is_absolute():
+        return Path(cases_root) / raw
+
+    return raw
