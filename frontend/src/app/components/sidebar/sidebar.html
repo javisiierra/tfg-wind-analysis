@@ -37,7 +37,7 @@
     <button
       class="btn primary"
       (click)="saveCase()"
-      [disabled]="loading || !drawnGeometries.length"
+      [disabled]="loading || isExecutionRunning || !drawnGeometries.length"
     >
       Guardar apoyos
     </button>
@@ -61,35 +61,35 @@
 
     <div class="status-list">
       <ng-container *ngIf="!isCaseStatusLoading && caseStatus; else emptyCaseStatus">
-      <div class="status-item" [class.ok]="caseStatus.has_domain">
-        <span>Dominio</span>
-        <strong>{{ caseStatus.has_domain ? 'OK' : 'Pendiente' }}</strong>
-      </div>
+        <div class="status-item" [class.ok]="caseStatus.has_domain">
+          <span>Dominio</span>
+          <strong>{{ caseStatus.has_domain ? 'OK' : 'Pendiente' }}</strong>
+        </div>
 
-      <div class="status-item" [class.ok]="caseStatus.has_apoyos">
-        <span>Apoyos</span>
-        <strong>{{ caseStatus.has_apoyos ? 'OK' : 'Pendiente' }}</strong>
-      </div>
+        <div class="status-item" [class.ok]="caseStatus.has_apoyos">
+          <span>Apoyos</span>
+          <strong>{{ caseStatus.has_apoyos ? 'OK' : 'Pendiente' }}</strong>
+        </div>
 
-      <div class="status-item" [class.ok]="caseStatus.has_vanos">
-        <span>Vanos</span>
-        <strong>{{ caseStatus.has_vanos ? 'OK' : 'Pendiente' }}</strong>
-      </div>
+        <div class="status-item" [class.ok]="caseStatus.has_vanos">
+          <span>Vanos</span>
+          <strong>{{ caseStatus.has_vanos ? 'OK' : 'Pendiente' }}</strong>
+        </div>
 
-      <div class="status-item" [class.ok]="caseStatus.has_dem">
-        <span>DEM</span>
-        <strong>{{ caseStatus.has_dem ? 'OK' : 'Pendiente' }}</strong>
-      </div>
+        <div class="status-item" [class.ok]="caseStatus.has_dem">
+          <span>DEM</span>
+          <strong>{{ caseStatus.has_dem ? 'OK' : 'Pendiente' }}</strong>
+        </div>
 
-      <div class="status-item" [class.ok]="caseStatus.has_weather">
-        <span>Meteorología</span>
-        <strong>{{ caseStatus.has_weather ? 'OK' : 'Pendiente' }}</strong>
-      </div>
+        <div class="status-item" [class.ok]="caseStatus.has_weather">
+          <span>Meteorología</span>
+          <strong>{{ caseStatus.has_weather ? 'OK' : 'Pendiente' }}</strong>
+        </div>
 
-      <div class="status-item" [class.ok]="caseStatus.ready_for_windninja">
-        <span>WindNinja</span>
-        <strong>{{ caseStatus.ready_for_windninja ? 'Listo' : 'No listo' }}</strong>
-      </div>
+        <div class="status-item" [class.ok]="caseStatus.ready_for_windninja">
+          <span>WindNinja</span>
+          <strong>{{ caseStatus.ready_for_windninja ? 'Listo' : 'No listo' }}</strong>
+        </div>
       </ng-container>
 
       <ng-template #emptyCaseStatus>
@@ -98,7 +98,6 @@
         </div>
       </ng-template>
     </div>
-
   </section>
 
   <section class="sidebar-card">
@@ -109,23 +108,23 @@
       </div>
     </div>
 
-    <button class="btn secondary" (click)="runGenerateDomainFromSupports()" [disabled]="!casePath || !caseStatus?.has_apoyos">
+    <button class="btn secondary" (click)="runGenerateDomainFromSupports()" [disabled]="loading || isExecutionRunning || !casePath || !caseStatus?.has_apoyos">
       Generar dominio desde apoyos
     </button>
 
-    <button class="btn secondary" (click)="runGenerateVanosFromSupports()" [disabled]="!casePath || !caseStatus?.has_apoyos">
+    <button class="btn secondary" (click)="runGenerateVanosFromSupports()" [disabled]="loading || isExecutionRunning || !casePath || !caseStatus?.has_apoyos">
       Generar vanos desde apoyos
     </button>
 
-    <button class="btn secondary" (click)="runGenerateDem()" [disabled]="!casePath">
+    <button class="btn secondary" (click)="runGenerateDem()" [disabled]="loading || isExecutionRunning || !casePath">
       Generar DEM
     </button>
 
-    <button class="btn secondary" (click)="runGenerateWeather()" [disabled]="!casePath">
+    <button class="btn secondary" (click)="runGenerateWeather()" [disabled]="loading || isExecutionRunning || !casePath">
       Generar meteorología
     </button>
 
-    <button class="btn primary" (click)="runWindNinja()" [disabled]="!caseStatus?.ready_for_windninja">
+    <button class="btn primary" (click)="runWindNinja()" [disabled]="loading || isExecutionRunning || !caseStatus?.ready_for_windninja">
       Run WindNinja
     </button>
 
@@ -148,25 +147,5 @@
       <button class="layer-btn" (click)="showVanos()">Vanos</button>
       <button class="layer-btn" (click)="showWorstSupports()">Vanos críticos</button>
     </div>
-  </section>
-
-  <section *ngIf="loading || result || error" class="sidebar-card output-card">
-    <div *ngIf="loading" class="loading-box">
-      Ejecutando {{ currentAction }}...
-    </div>
-
-    <div *ngIf="userMessage" class="loading-box">
-      {{ userMessage }}
-    </div>
-
-    <details *ngIf="result">
-      <summary>Resultado técnico</summary>
-      <pre>{{ result | json }}</pre>
-    </details>
-
-    <details *ngIf="error" class="error-details">
-      <summary>Error técnico</summary>
-      <pre>{{ error | json }}</pre>
-    </details>
   </section>
 </div>
