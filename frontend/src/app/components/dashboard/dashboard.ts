@@ -30,8 +30,21 @@ interface WindTimeseries {
 
 interface WindRoseData {
   direction: string;
-  frequency: number;
-  velocity_range: { min: number; max: number };
+  frequency?: number | Record<string, unknown>;
+  percentage?: number;
+  value?: number;
+  freq?: number;
+  mean_speed?: number;
+  avg_velocity?: number;
+  velocity_range?: { min?: number; max?: number };
+}
+
+interface NormalizedWindRoseData {
+  direction: string;
+  percentage: number | null;
+  mean_speed?: number;
+  velocity_range?: { min?: number; max?: number };
+  source: WindRoseData;
 }
 
 type DashboardJobStatus =
@@ -77,6 +90,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   meteoSummary: MeteoSummary | null = null;
   windTimeseries: WindTimeseries[] = [];
   windRoseData: WindRoseData[] = [];
+  normalizedWindRoseData: NormalizedWindRoseData[] = [];
 
   chartContainerId = 'monthly-wind-chart';
   roseContainerId = 'wind-rose-chart';
@@ -158,6 +172,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.meteoSummary = null;
     this.windTimeseries = [];
     this.windRoseData = [];
+    this.normalizedWindRoseData = [];
 
     this.validateCasePathForAnalysis((validatedPath) => {
       if (!validatedPath) {
@@ -376,6 +391,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
           this.meteoSummary = response.result.meteo_summary;
           this.windTimeseries = response.result.wind_timeseries ?? [];
           this.windRoseData = response.result.wind_rose ?? [];
+          this.normalizedWindRoseData = this.normalizeWindRoseData(this.windRoseData);
         }
 
         this.isLoading = false;
@@ -513,8 +529,18 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     this.windRoseChart?.destroy();
 
-    const labels = this.windRoseData.map(data => data.direction);
-    const values = this.windRoseData.map(data => Number((data.frequency * 100).toFixed(2)));
+    const data = this.normalizedWindRoseData.length
+      ? this.normalizedWindRoseData
+      : this.normalizeWindRoseData(this.windRoseData);
+    const labels = data.map(item => item.direction);
+    const values = data.map(item => item.percentage ?? 0);
+
+    console.debug('[Dashboard][WindRose] normalized sectors', data.map(item => ({
+      direction: item.direction,
+      percentage: item.percentage,
+      mean_speed: item.mean_speed,
+      raw: item.source
+    })));
 
     this.windRoseChart = new Chart(canvas, {
       type: 'polarArea',
@@ -530,18 +556,174 @@ export class DashboardComponent implements OnInit, OnDestroy {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        layout: {
+          padding: 12
+        },
+        interaction: {
+          intersect: true,
+          mode: 'nearest'
+        },
         plugins: {
           legend: {
-            position: 'right'
+            position: 'right',
+            labels: {
+              color: '#cbd5e1',
+              boxWidth: 28,
+              boxHeight: 12,
+              padding: 14,
+              font: {
+                size: 12,
+                weight: 600
+              }
+            }
           },
           tooltip: {
+            backgroundColor: 'rgba(2, 6, 23, 0.94)',
+            borderColor: '#38bdf8',
+            borderWidth: 1,
+            titleColor: '#f8fafc',
+            bodyColor: '#e2e8f0',
+            cornerRadius: 8,
+            padding: 12,
+            caretPadding: 16,
+            displayColors: true,
+            yAlign: 'bottom',
             callbacks: {
-              label: (context) => `${context.label}: ${context.parsed} %`
+              title: (items) => String(items[0]?.label ?? ''),
+              label: (context) => {
+                const index = context.dataIndex;
+                const sector = data[index];
+                const payload = sector ?? context.raw ?? context.parsed;
+                console.debug('[Dashboard][WindRose] tooltip payload', {
+                  direction: context.label,
+                  raw: context.raw,
+                  parsed: context.parsed,
+                  sector
+                });
+
+                return this.formatWindRoseTooltip(String(context.label ?? ''), payload);
+              }
+            }
+          }
+        },
+        scales: {
+          r: {
+            beginAtZero: true,
+            grid: {
+              color: 'rgba(148, 163, 184, 0.18)'
+            },
+            angleLines: {
+              color: 'rgba(148, 163, 184, 0.24)'
+            },
+            ticks: {
+              color: '#e2e8f0',
+              backdropColor: 'rgba(15, 23, 42, 0.78)',
+              font: {
+                size: 12,
+                weight: 700
+              },
+              callback: (value) => `${Number(value).toFixed(0)}`
+            },
+            pointLabels: {
+              color: '#f8fafc',
+              font: {
+                size: 12,
+                weight: 700
+              }
             }
           }
         }
       }
     });
+  }
+
+  formatWindRoseTooltip(direction: string, payload: unknown): string {
+    const percentage = this.extractWindRosePercentage(payload);
+    const meanSpeed = this.extractNumericValue(payload, ['mean_speed', 'avg_velocity', 'meanSpeed', 'average_speed']);
+
+    if (percentage === null) {
+      return `${direction}: Sin datos`;
+    }
+
+    const percentageText = `${percentage.toFixed(2)} %`;
+
+    if (meanSpeed !== null) {
+      return `${direction} · Frecuencia: ${percentageText} · Velocidad media: ${meanSpeed.toFixed(1)} m/s`;
+    }
+
+    return `${direction}: ${percentageText}`;
+  }
+
+  private normalizeWindRoseData(rawData: WindRoseData[]): NormalizedWindRoseData[] {
+    console.debug('[Dashboard][WindRose] raw response', rawData);
+
+    return rawData.map((item, index) => {
+      const direction = String(item?.direction ?? `Sector ${index + 1}`);
+      const percentage = this.extractWindRosePercentage(item);
+      const meanSpeed = this.extractNumericValue(item, ['mean_speed', 'avg_velocity', 'meanSpeed', 'average_speed']);
+
+      return {
+        direction,
+        percentage,
+        mean_speed: meanSpeed ?? undefined,
+        velocity_range: item?.velocity_range,
+        source: item
+      };
+    });
+  }
+
+  private extractWindRosePercentage(payload: unknown): number | null {
+    if (typeof payload === 'number') {
+      return Number.isFinite(payload) ? this.normalizePercentageScale(payload) : null;
+    }
+
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
+
+    const value = this.extractNumericValue(payload, ['percentage', 'frequency', 'value', 'freq', 'y', 'r']);
+
+    return value === null ? null : this.normalizePercentageScale(value);
+  }
+
+  private extractNumericValue(payload: unknown, keys: string[]): number | null {
+    if (typeof payload === 'number') {
+      return Number.isFinite(payload) ? payload : null;
+    }
+
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
+
+    const record = payload as Record<string, unknown>;
+
+    for (const key of keys) {
+      const candidate = record[key];
+
+      if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+        return candidate;
+      }
+
+      if (typeof candidate === 'string' && candidate.trim() !== '') {
+        const parsed = Number(candidate);
+        if (Number.isFinite(parsed)) {
+          return parsed;
+        }
+      }
+
+      if (candidate && typeof candidate === 'object') {
+        const nestedValue = this.extractNumericValue(candidate, keys);
+        if (nestedValue !== null) {
+          return nestedValue;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  private normalizePercentageScale(value: number): number {
+    return value >= 0 && value <= 1 ? Number((value * 100).toFixed(2)) : Number(value.toFixed(2));
   }
 
   getDirectionLabel(degrees: number): string {

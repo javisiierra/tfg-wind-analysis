@@ -126,7 +126,13 @@
 
       <div class="chart-container">
         <h2>Rosa de Vientos</h2>
+        <p class="chart-subtitle">DistribuciÃ³n porcentual de la direcciÃ³n del viento</p>
+        <div class="chart-meta" *ngIf="meteoSummary">
+          <span>{{ meteoSummary.data_points | number: '1.0-0' }} registros analizados</span>
+          <span *ngIf="selectedYear">Periodo {{ selectedYear }}</span>
+        </div>
         <canvas id="wind-rose-chart" class="chart"></canvas>
+        <p class="chart-note">Cada sector representa la frecuencia (%) de viento desde esa direcciÃ³n.</p>
       </div>
     </section>
   </div>

@@ -388,6 +388,7 @@ def calculate_wind_rose(df: pd.DataFrame) -> list[dict[str, Any]]:
             {
                 "direction": name,
                 "frequency": float(mask.mean()),
+                "mean_speed": float(sector_ws.mean()) if not sector_ws.empty else 0.0,
                 "velocity_range": {
                     "min": float(sector_ws.min()) if not sector_ws.empty else 0.0,
                     "max": float(sector_ws.max()) if not sector_ws.empty else 0.0,

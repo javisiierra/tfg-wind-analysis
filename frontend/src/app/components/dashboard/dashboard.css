@@ -248,16 +248,47 @@ select:hover {
 }
 
 .chart-container h2 {
-  margin: 0 0 20px;
+  margin: 0 0 6px;
   font-size: 18px;
   color: #f8fafc;
   font-weight: 700;
 }
 
+.chart-subtitle {
+  margin: 0;
+  color: #cbd5e1;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.chart-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 6px;
+}
+
+.chart-meta span {
+  color: #bfdbfe;
+  background: rgba(37, 99, 235, .16);
+  border: 1px solid rgba(96, 165, 250, .28);
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .chart {
   width: 100% !important;
-  height: 360px !important;
+  height: 340px !important;
   display: block;
+}
+
+.chart-note {
+  margin: 10px 0 0;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .no-data {
