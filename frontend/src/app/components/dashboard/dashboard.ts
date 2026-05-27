@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject, Subscription, interval } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
-import { Chart, registerables } from 'chart.js';
+import { Chart, ChartConfiguration, ChartOptions, registerables } from 'chart.js';
 
 import { DashboardAsyncStatusResponse, DashboardService, MeteoRequestPayload } from '../../services/dashboard.service';
 import { MapContextService } from '../../services/map-context.service';
@@ -30,8 +30,28 @@ interface WindTimeseries {
 
 interface WindRoseData {
   direction: string;
-  frequency: number;
-  velocity_range: { min: number; max: number };
+  frequency?: number | Record<string, unknown>;
+  percentage?: number;
+  value?: number;
+  freq?: number;
+  mean_speed?: number;
+  avg_velocity?: number;
+  sample_count?: number;
+  samples?: number;
+  count?: number;
+  velocity_range?: { min?: number; max?: number };
+}
+
+interface WindRoseSector {
+  direction: string;
+  percentage: number | null;
+  meanSpeed: number | null;
+  samples: number | null;
+  velocity_range?: { min?: number; max?: number };
+  raw: WindRoseData | null;
+  angle: number;
+  path: string;
+  color: string;
 }
 
 type DashboardJobStatus =
@@ -72,17 +92,71 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private analysisStartedAtMs: number | null = null;
   private pollingSubscription: Subscription | null = null;
   private monthlyChart: Chart | null = null;
-  private windRoseChart: Chart | null = null;
 
   meteoSummary: MeteoSummary | null = null;
   windTimeseries: WindTimeseries[] = [];
   windRoseData: WindRoseData[] = [];
+  windRoseSectors: WindRoseSector[] = [];
+  selectedWindSector: WindRoseSector | null = null;
 
   chartContainerId = 'monthly-wind-chart';
-  roseContainerId = 'wind-rose-chart';
   private destroy$ = new Subject<void>();
 
   private readonly baseCasesPath = '/data';
+  readonly windRoseDirections = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+  readonly windRoseRings = [3, 6, 9, 12];
+  private readonly windRoseCenter = 210;
+  private readonly windRoseMaxRadius = 150;
+  private readonly windRoseInnerRadius = 4;
+  private readonly windRoseSectorDegrees = 360 / this.windRoseDirections.length;
+  private readonly windRosePalette = [
+    '#0ea5e9', '#be4372', '#a76732', '#d6bd67',
+    '#2e938c', '#6d49bd', '#8c929d', '#126898',
+    '#be4372', '#a76732', '#a69355', '#31949a',
+    '#6d49bd', '#8c929d', '#126898', '#be4372'
+  ];
+  private readonly monthlyWindChartOptions: ChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: {
+      mode: 'nearest',
+      intersect: false
+    },
+    hover: {
+      mode: 'nearest',
+      intersect: false
+    },
+    plugins: {
+      legend: {
+        position: 'top'
+      },
+      tooltip: {
+        enabled: true,
+        mode: 'nearest',
+        intersect: false,
+        callbacks: {
+          title: (items) => items[0]?.label ?? '',
+          label: (context) => {
+            const label = context.dataset.label ?? '';
+            const value = typeof context.parsed.y === 'number'
+              ? context.parsed.y.toFixed(2)
+              : context.formattedValue;
+
+            return `${label}: ${value} m/s`;
+          }
+        }
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        title: {
+          display: true,
+          text: 'm/s'
+        }
+      }
+    }
+  };
 
   constructor(
     private dashboardService: DashboardService,
@@ -106,7 +180,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
     this.stopPolling();
     this.monthlyChart?.destroy();
-    this.windRoseChart?.destroy();
   }
 
   private initializeYears(): void {
@@ -144,9 +217,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
 
     this.monthlyChart?.destroy();
-    this.windRoseChart?.destroy();
     this.monthlyChart = null;
-    this.windRoseChart = null;
 
     this.isLoading = true;
     this.error = null;
@@ -158,6 +229,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.meteoSummary = null;
     this.windTimeseries = [];
     this.windRoseData = [];
+    this.windRoseSectors = [];
+    this.selectedWindSector = null;
 
     this.validateCasePathForAnalysis((validatedPath) => {
       if (!validatedPath) {
@@ -376,6 +449,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
           this.meteoSummary = response.result.meteo_summary;
           this.windTimeseries = response.result.wind_timeseries ?? [];
           this.windRoseData = response.result.wind_rose ?? [];
+          this.windRoseSectors = this.buildWindRoseSectors(this.windRoseData);
+          this.selectedWindSector = null;
         }
 
         this.isLoading = false;
@@ -452,7 +527,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private renderCharts(): void {
     setTimeout(() => {
       this.renderMonthlyChart();
-      this.renderWindRoseChart();
     }, 100);
   }
 
@@ -469,79 +543,180 @@ export class DashboardComponent implements OnInit, OnDestroy {
     const avgData = this.windTimeseries.map(data => data.avg_velocity);
     const maxData = this.windTimeseries.map(data => data.max_velocity);
 
-    this.monthlyChart = new Chart(canvas, {
+    const monthlyWindChartConfig: ChartConfiguration = {
       type: 'bar',
       data: {
         labels,
         datasets: [
           {
             label: 'Velocidad media (m/s)',
-            data: avgData
+            data: avgData,
+            backgroundColor: 'rgba(37, 99, 235, .72)',
+            borderColor: '#60a5fa',
+            borderWidth: 1,
+            hoverBackgroundColor: 'rgba(37, 99, 235, .92)'
           },
           {
             label: 'Velocidad máxima (m/s)',
             data: maxData,
             type: 'line',
-            tension: 0.3
+            tension: 0.3,
+            borderColor: '#ef4444',
+            backgroundColor: '#ef4444',
+            pointBackgroundColor: '#ef4444',
+            pointBorderColor: '#fecaca',
+            pointRadius: 4,
+            pointHoverRadius: 6
           }
         ]
       },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'top'
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            title: {
-              display: true,
-              text: 'm/s'
-            }
-          }
-        }
+      options: this.monthlyWindChartOptions
+    };
+
+    this.monthlyChart = new Chart(canvas, monthlyWindChartConfig);
+  }
+
+  selectWindSector(sector: WindRoseSector): void {
+    console.log('[WindRose] clicked sector object:', sector);
+    console.log('[WindRose] selected direction:', sector.direction);
+    this.selectedWindSector = sector;
+  }
+
+  clearWindSectorSelection(): void {
+    this.selectedWindSector = null;
+  }
+
+  isSelectedWindSector(sector: WindRoseSector): boolean {
+    return this.selectedWindSector?.direction === sector.direction;
+  }
+
+  private buildWindRoseSectors(rawData: WindRoseData[]): WindRoseSector[] {
+    console.debug('[Dashboard][WindRose] raw response', rawData);
+
+    const dataByDirection = new Map<string, WindRoseData>();
+
+    rawData.forEach((item) => {
+      const direction = this.normalizeDirectionName(item?.direction);
+      if (direction) {
+        dataByDirection.set(direction, item);
       }
+    });
+
+    return this.windRoseDirections.map((direction, index) => {
+      const item = dataByDirection.get(direction);
+      const percentage = this.extractWindRosePercentage(item);
+      const meanSpeed = this.extractNumericValue(item, ['mean_speed', 'meanSpeed', 'avg_velocity', 'average_speed']);
+      const samples = this.extractNumericValue(item, ['samples', 'sample_count', 'count', 'n']);
+      const angle = index * this.windRoseSectorDegrees;
+      const radius = this.radiusForPercentage(percentage ?? 0);
+
+      return {
+        direction,
+        percentage,
+        meanSpeed,
+        samples,
+        velocity_range: item?.velocity_range,
+        raw: item ?? null,
+        angle,
+        path: this.buildWindRoseSectorPath(angle, radius),
+        color: this.windRosePalette[index % this.windRosePalette.length]
+      };
     });
   }
 
-  private renderWindRoseChart(): void {
-    const canvas = document.getElementById(this.roseContainerId) as HTMLCanvasElement | null;
-    if (!canvas) return;
+  private buildWindRoseSectorPath(centerAngle: number, outerRadius: number): string {
+    const startAngle = centerAngle - this.windRoseSectorDegrees / 2;
+    const endAngle = centerAngle + this.windRoseSectorDegrees / 2;
+    const innerStart = this.polarPoint(startAngle, this.windRoseInnerRadius);
+    const outerStart = this.polarPoint(startAngle, outerRadius);
+    const outerEnd = this.polarPoint(endAngle, outerRadius);
+    const innerEnd = this.polarPoint(endAngle, this.windRoseInnerRadius);
+    const largeArcFlag = this.windRoseSectorDegrees > 180 ? 1 : 0;
 
-    this.windRoseChart?.destroy();
+    return [
+      `M ${innerStart.x} ${innerStart.y}`,
+      `L ${outerStart.x} ${outerStart.y}`,
+      `A ${outerRadius.toFixed(2)} ${outerRadius.toFixed(2)} 0 ${largeArcFlag} 1 ${outerEnd.x} ${outerEnd.y}`,
+      `L ${innerEnd.x} ${innerEnd.y}`,
+      `A ${this.windRoseInnerRadius} ${this.windRoseInnerRadius} 0 ${largeArcFlag} 0 ${innerStart.x} ${innerStart.y}`,
+      'Z'
+    ].join(' ');
+  }
 
-    const labels = this.windRoseData.map(data => data.direction);
-    const values = this.windRoseData.map(data => Number((data.frequency * 100).toFixed(2)));
+  private polarPoint(angleDegrees: number, radius: number): { x: string; y: string } {
+    const radians = angleDegrees * Math.PI / 180;
+    const x = this.windRoseCenter + radius * Math.sin(radians);
+    const y = this.windRoseCenter - radius * Math.cos(radians);
 
-    this.windRoseChart = new Chart(canvas, {
-      type: 'polarArea',
-      data: {
-        labels,
-        datasets: [
-          {
-            label: 'Frecuencia (%)',
-            data: values
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'right'
-          },
-          tooltip: {
-            callbacks: {
-              label: (context) => `${context.label}: ${context.parsed} %`
-            }
-          }
+    return {
+      x: x.toFixed(2),
+      y: y.toFixed(2)
+    };
+  }
+
+  private radiusForPercentage(percentage: number): number {
+    const maxRing = Math.max(...this.windRoseRings);
+    const clamped = Math.max(0, Math.min(percentage, maxRing));
+    return Math.max(this.windRoseInnerRadius, (clamped / maxRing) * this.windRoseMaxRadius);
+  }
+
+  private normalizeDirectionName(direction: unknown): string | null {
+    const value = String(direction ?? '').trim().toUpperCase();
+    return this.windRoseDirections.includes(value) ? value : null;
+  }
+
+  private extractWindRosePercentage(payload: unknown): number | null {
+    if (typeof payload === 'number') {
+      return Number.isFinite(payload) ? this.normalizePercentageScale(payload) : null;
+    }
+
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
+
+    const value = this.extractNumericValue(payload, ['percentage', 'frequency', 'value', 'freq', 'y', 'r']);
+
+    return value === null ? null : this.normalizePercentageScale(value);
+  }
+
+  private extractNumericValue(payload: unknown, keys: string[]): number | null {
+    if (typeof payload === 'number') {
+      return Number.isFinite(payload) ? payload : null;
+    }
+
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
+
+    const record = payload as Record<string, unknown>;
+
+    for (const key of keys) {
+      const candidate = record[key];
+
+      if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+        return candidate;
+      }
+
+      if (typeof candidate === 'string' && candidate.trim() !== '') {
+        const parsed = Number(candidate);
+        if (Number.isFinite(parsed)) {
+          return parsed;
         }
       }
-    });
+
+      if (candidate && typeof candidate === 'object') {
+        const nestedValue = this.extractNumericValue(candidate, keys);
+        if (nestedValue !== null) {
+          return nestedValue;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  private normalizePercentageScale(value: number): number {
+    return value >= 0 && value <= 1 ? Number((value * 100).toFixed(2)) : Number(value.toFixed(2));
   }
 
   getDirectionLabel(degrees: number): string {

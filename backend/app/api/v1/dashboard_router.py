@@ -75,6 +75,8 @@ class WindRoseData(BaseModel):
     direction: str
     frequency: float
     velocity_range: Dict[str, float]
+    mean_speed: Optional[float] = None
+    sample_count: Optional[int] = None
     source: str
     request_id: str
     domain_bbox: Optional[Tuple[float, float, float, float]] = None

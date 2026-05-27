@@ -248,16 +248,223 @@ select:hover {
 }
 
 .chart-container h2 {
-  margin: 0 0 20px;
+  margin: 0 0 6px;
   font-size: 18px;
   color: #f8fafc;
   font-weight: 700;
 }
 
+.chart-subtitle {
+  margin: 0;
+  color: #cbd5e1;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.chart-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 6px;
+}
+
+.chart-meta span {
+  color: #bfdbfe;
+  background: rgba(37, 99, 235, .16);
+  border: 1px solid rgba(96, 165, 250, .28);
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .chart {
   width: 100% !important;
-  height: 360px !important;
+  height: 340px !important;
   display: block;
+}
+
+.monthly-wind-card .chart {
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
+}
+
+.chart-note {
+  margin: 10px 0 0;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.wind-rose-card {
+  min-height: 0;
+}
+
+.wind-rose-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.wind-rose-header .chart-meta {
+  justify-content: flex-end;
+  margin: 0;
+}
+
+.wind-rose-body {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(170px, 210px);
+  gap: 16px;
+  align-items: center;
+}
+
+.wind-rose-chart-wrapper {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  min-height: 300px;
+  max-height: 360px;
+  padding: 4px;
+  border-radius: 8px;
+  background: radial-gradient(circle at center, rgba(15, 23, 42, .72) 0%, rgba(15, 23, 42, .28) 52%, rgba(2, 6, 23, 0) 74%);
+}
+
+.wind-rose-svg {
+  width: min(100%, 360px);
+  max-width: 420px;
+  max-height: 330px;
+  display: block;
+}
+
+.wind-rose-grid circle,
+.wind-rose-grid line {
+  fill: none;
+  stroke: rgba(148, 163, 184, .18);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+.wind-rose-grid text,
+.wind-rose-direction-labels text {
+  fill: #cbd5e1;
+  font-size: 13px;
+  font-weight: 800;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+}
+
+.wind-rose-direction-labels text {
+  fill: #94a3b8;
+  font-size: 14px;
+}
+
+.wind-rose-sector {
+  cursor: pointer;
+  opacity: .88;
+  stroke: rgba(248, 250, 252, .78);
+  stroke-linejoin: round;
+  stroke-width: 2;
+  transition: opacity .15s ease, stroke-width .15s ease, filter .15s ease;
+}
+
+.wind-rose-sector:hover,
+.wind-rose-sector.selected {
+  opacity: 1;
+  stroke: #f8fafc;
+  stroke-width: 4;
+  filter: drop-shadow(0 0 6px rgba(56, 189, 248, .34));
+}
+
+.wind-rose-sector.dimmed {
+  opacity: .36;
+}
+
+.wind-sector-detail {
+  align-self: center;
+  min-height: 170px;
+  padding: 12px;
+  background: rgba(2, 6, 23, .54);
+  border: 1px solid rgba(56, 189, 248, .24);
+  border-radius: 8px;
+}
+
+.wind-sector-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #93c5fd;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.wind-sector-detail h3 {
+  margin: 4px 0 12px;
+  color: #f8fafc;
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.wind-sector-close {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #0f172a;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 17px;
+  line-height: 1;
+}
+
+.wind-sector-close:hover {
+  border-color: #38bdf8;
+  color: #f8fafc;
+}
+
+.wind-sector-detail dl {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+}
+
+.wind-sector-detail dt {
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.wind-sector-detail dd {
+  margin: 2px 0 0;
+  color: #f8fafc;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.wind-sector-empty-label {
+  display: block;
+  color: #93c5fd;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.wind-sector-detail p {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .no-data {
@@ -285,6 +492,22 @@ select:hover {
 
   .charts-section {
     grid-template-columns: 1fr;
+  }
+
+  .wind-rose-body {
+    grid-template-columns: 1fr;
+  }
+
+  .wind-rose-header {
+    flex-direction: column;
+  }
+
+  .wind-rose-header .chart-meta {
+    justify-content: flex-start;
+  }
+
+  .wind-sector-detail {
+    min-height: 0;
   }
 
   .summary-cards {

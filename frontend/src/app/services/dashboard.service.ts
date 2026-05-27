@@ -23,7 +23,15 @@ export interface WindTimeseries {
 
 export interface WindRoseData {
   direction: string;
-  frequency: number;
+  frequency?: number | Record<string, unknown>;
+  percentage?: number;
+  value?: number;
+  freq?: number;
+  mean_speed?: number;
+  avg_velocity?: number;
+  sample_count?: number;
+  samples?: number;
+  count?: number;
   velocity_range: { min: number; max: number };
 }
 
