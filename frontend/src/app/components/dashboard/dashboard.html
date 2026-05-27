@@ -119,20 +119,93 @@
     </section>
 
     <section class="charts-section">
-      <div class="chart-container">
+      <div class="chart-container monthly-wind-card">
         <h2>Análisis Mensual de Viento</h2>
         <canvas id="monthly-wind-chart" class="chart"></canvas>
       </div>
 
-      <div class="chart-container">
-        <h2>Rosa de Vientos</h2>
-        <p class="chart-subtitle">DistribuciÃ³n porcentual de la direcciÃ³n del viento</p>
-        <div class="chart-meta" *ngIf="meteoSummary">
-          <span>{{ meteoSummary.data_points | number: '1.0-0' }} registros analizados</span>
-          <span *ngIf="selectedYear">Periodo {{ selectedYear }}</span>
+      <div class="chart-container wind-rose-card" (click)="clearWindSectorSelection()">
+        <div class="wind-rose-header">
+          <div>
+            <h2>Rosa de Vientos</h2>
+            <p class="chart-subtitle">Distribución porcentual de la dirección del viento</p>
+          </div>
+          <div class="chart-meta" *ngIf="meteoSummary">
+            <span>{{ meteoSummary.data_points | number: '1.0-0' }} registros analizados</span>
+            <span *ngIf="selectedYear">Periodo {{ selectedYear }}</span>
+          </div>
         </div>
-        <canvas id="wind-rose-chart" class="chart"></canvas>
-        <p class="chart-note">Cada sector representa la frecuencia (%) de viento desde esa direcciÃ³n.</p>
+
+        <div class="wind-rose-body" (click)="$event.stopPropagation()">
+          <div class="wind-rose-chart-wrapper">
+            <svg class="wind-rose-svg" viewBox="0 0 420 420" role="img" aria-label="Rosa de vientos">
+              <g class="wind-rose-grid" aria-hidden="true">
+                <circle *ngFor="let ring of windRoseRings" cx="210" cy="210" [attr.r]="ring * 12.5"></circle>
+                <line x1="210" y1="60" x2="210" y2="360"></line>
+                <line x1="60" y1="210" x2="360" y2="210"></line>
+                <text x="214" y="62">12</text>
+                <text x="214" y="99.5">9</text>
+                <text x="214" y="137">6</text>
+                <text x="214" y="174.5">3</text>
+              </g>
+
+              <g class="wind-rose-direction-labels" aria-hidden="true">
+                <text x="210" y="36">N</text>
+                <text x="384" y="215">E</text>
+                <text x="210" y="395">S</text>
+                <text x="36" y="215">W</text>
+              </g>
+
+              <g>
+                <path
+                  *ngFor="let sector of windRoseSectors"
+                  class="wind-rose-sector"
+                  [class.selected]="isSelectedWindSector(sector)"
+                  [class.dimmed]="selectedWindSector && !isSelectedWindSector(sector)"
+                  [attr.d]="sector.path"
+                  [attr.fill]="sector.color"
+                  (click)="selectWindSector(sector)"
+                ></path>
+              </g>
+            </svg>
+            <p class="chart-note">Haz click en un sector para ver sus datos.</p>
+          </div>
+
+          <aside class="wind-sector-detail" (click)="$event.stopPropagation()">
+            <ng-container *ngIf="selectedWindSector; else windSectorEmpty">
+              <div class="wind-sector-detail-header">
+                <span>Dirección</span>
+                <button type="button" class="wind-sector-close" (click)="clearWindSectorSelection()" aria-label="Cerrar selección">
+                  ×
+                </button>
+              </div>
+              <h3>{{ selectedWindSector.direction }}</h3>
+              <dl>
+                <div>
+                  <dt>Frecuencia</dt>
+                  <dd *ngIf="selectedWindSector.percentage !== null; else noFrequency">
+                    {{ selectedWindSector.percentage | number: '1.1-2' }} %
+                  </dd>
+                  <ng-template #noFrequency>
+                    <dd>Sin datos</dd>
+                  </ng-template>
+                </div>
+                <div *ngIf="selectedWindSector.meanSpeed !== null">
+                  <dt>Velocidad media</dt>
+                  <dd>{{ selectedWindSector.meanSpeed | number: '1.1-1' }} m/s</dd>
+                </div>
+                <div *ngIf="selectedWindSector.samples !== null">
+                  <dt>Muestras</dt>
+                  <dd>{{ selectedWindSector.samples | number: '1.0-0' }}</dd>
+                </div>
+              </dl>
+            </ng-container>
+            <ng-template #windSectorEmpty>
+              <span class="wind-sector-empty-label">Sin sector seleccionado</span>
+              <p>Cada sector representa la frecuencia (%) de viento desde esa dirección.</p>
+            </ng-template>
+          </aside>
+        </div>
       </div>
     </section>
   </div>

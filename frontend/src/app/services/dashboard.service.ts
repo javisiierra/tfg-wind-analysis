@@ -29,6 +29,9 @@ export interface WindRoseData {
   freq?: number;
   mean_speed?: number;
   avg_velocity?: number;
+  sample_count?: number;
+  samples?: number;
+  count?: number;
   velocity_range: { min: number; max: number };
 }
 
