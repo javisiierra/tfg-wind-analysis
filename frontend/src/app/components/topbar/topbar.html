@@ -21,7 +21,11 @@
     </button>
 
     <button class="btn primary" (click)="prepareCase()" [disabled]="loading || isExecutionRunning || !casePath">
-      Preparar caso
+      Importar carpeta
+    </button>
+
+    <button class="btn primary" (click)="executePreparationPipeline()" [disabled]="loading || isExecutionRunning || !casePath">
+      Ejecutar preparación
     </button>
   </div>
 </div>

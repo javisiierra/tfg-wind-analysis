@@ -5,6 +5,7 @@
       [isExecutionRunning]="isExecutionRunning"
       (folderSelected)="onFolderSelected($event)"
       (casePrepared)="onCaseActionCompleted($event)"
+      (preparationCompleted)="onCaseActionCompleted($event)"
       (executionUiStateChange)="onExecutionUiStateChange($event)">
     </app-topbar>
   </header>
