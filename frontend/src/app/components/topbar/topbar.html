@@ -16,17 +16,12 @@
       title="Ruta de la carpeta del caso"
     />
 
-    <button class="btn secondary" (click)="selectFolder()">
+    <button class="btn secondary" (click)="selectFolder()" [disabled]="loading || isExecutionRunning">
       Seleccionar carpeta
     </button>
 
-    <button class="btn primary" (click)="prepareCase()">
+    <button class="btn primary" (click)="prepareCase()" [disabled]="loading || isExecutionRunning || !casePath">
       Preparar caso
     </button>
-  </div>
-
-  <div class="system-status" [class.has-error]="error">
-    <span class="status-dot"></span>
-    <span>{{ error ? 'Error' : statusText ? statusText : 'Listo' }}</span>
   </div>
 </div>

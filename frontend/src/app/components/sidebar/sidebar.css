@@ -196,12 +196,6 @@
   background: #e2e8f0;
 }
 
-.output-card {
-  background: #020617;
-  color: #e2e8f0;
-  border-color: #1e293b;
-}
-
 .loading-box {
   padding: 8px;
   border-radius: 9px;
@@ -209,28 +203,4 @@
   color: #bfdbfe;
   font-size: 12px;
   font-weight: 700;
-}
-
-details {
-  margin-top: 7px;
-}
-
-summary {
-  cursor: pointer;
-  font-weight: 700;
-  font-size: 12px;
-}
-
-pre {
-  margin: 8px 0 0 0;
-  max-height: 160px;
-  overflow: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-size: 11px;
-  color: #cbd5e1;
-}
-
-.error-details {
-  color: #fecaca;
 }

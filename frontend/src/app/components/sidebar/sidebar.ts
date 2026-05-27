@@ -1,14 +1,15 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { CommonModule, JsonPipe } from '@angular/common';
+import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DrawMode } from '../../app';
 import { CaseStatusResponse } from '../../services/dashboard.service';
+import { ExecutionUiState } from '../../models/execution-ui-state';
 
 @Component({
   selector: 'app-sidebar',
   standalone: true,
-  imports: [CommonModule, JsonPipe, FormsModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './sidebar.html',
   styleUrl: './sidebar.css'
 })
@@ -16,6 +17,7 @@ export class Sidebar {
   @Input() casePath: string = '';
   @Input() caseStatus: CaseStatusResponse | null = null;
   @Input() isCaseStatusLoading = false;
+  @Input() isExecutionRunning = false;
   @Input() drawnGeometries: Record<string, any>[] = [];
 
   @Output() layerSelected = new EventEmitter<string>();
@@ -23,6 +25,7 @@ export class Sidebar {
   @Output() clearDrawing = new EventEmitter<void>();
   @Output() caseCreated = new EventEmitter<string>();
   @Output() actionCompletedOk = new EventEmitter<string | undefined>();
+  @Output() executionUiStateChange = new EventEmitter<ExecutionUiState>();
 
   result: any = null;
   error: any = null;
@@ -51,11 +54,13 @@ export class Sidebar {
 
     if (!trimmedName && !this.casePath) {
       this.error = { message: 'Debes indicar un case_name o tener un caso activo.' };
+      this.emitErrorState(this.error.message);
       return;
     }
 
     if (!this.drawnGeometries.length) {
       this.error = { message: 'Debes dibujar al menos un apoyo antes de guardar.' };
+      this.emitErrorState(this.error.message);
       return;
     }
 
@@ -64,6 +69,7 @@ export class Sidebar {
     this.error = null;
     this.userMessage = '';
     this.currentAction = 'Guardar apoyos';
+    this.emitRunningState('Guardar apoyos', 'Persistiendo geometria y actualizando el caso');
 
     try {
       let lastResponse: any = null;
@@ -102,9 +108,11 @@ export class Sidebar {
       this.clearDrawing.emit();
 
       this.loading = false;
+      this.emitSuccessState();
     } catch (err) {
       this.error = err;
       this.loading = false;
+      this.emitErrorState(this.getErrorDetail(err, 'No se pudieron guardar los apoyos.'));
     }
   }
 
@@ -150,6 +158,7 @@ export class Sidebar {
     this.error = null;
     this.userMessage = '';
     this.currentAction = action;
+    this.emitRunningState(action, this.detailForAction(action));
 
     this.http.post(`http://127.0.0.1:8000/api/v1/pipeline${endpoint}`, {
       case_path: this.casePath
@@ -158,11 +167,13 @@ export class Sidebar {
         this.result = res;
         this.userMessage = this.buildPipelineUserMessage(endpoint, res);
         this.loading = false;
+        this.emitSuccessState(this.userMessage || undefined);
         this.actionCompletedOk.emit(this.casePath);
       },
       error: (err) => {
         this.error = err;
         this.loading = false;
+        this.emitErrorState(this.getErrorDetail(err, `Error ejecutando ${action}.`));
       }
     });
   }
@@ -173,6 +184,7 @@ export class Sidebar {
     this.error = null;
     this.userMessage = '';
     this.currentAction = action;
+    this.emitRunningState(action, this.detailForAction(action));
 
     this.http.post(`http://127.0.0.1:8000/api/v1/domain${endpoint}`, {
       case_path: this.casePath
@@ -180,6 +192,7 @@ export class Sidebar {
       next: (res) => {
         this.result = res;
         this.loading = false;
+        this.emitSuccessState();
         this.actionCompletedOk.emit(this.casePath);
 
         if (endpoint === '/generate-dem') {
@@ -189,6 +202,7 @@ export class Sidebar {
       error: (err) => {
         this.error = err;
         this.loading = false;
+        this.emitErrorState(this.getErrorDetail(err, `Error ejecutando ${action}.`));
       }
     });
   }
@@ -198,6 +212,7 @@ export class Sidebar {
     this.result = null;
     this.error = null;
     this.currentAction = action;
+    this.emitRunningState(action, this.detailForAction(action));
 
     this.http.post(`http://127.0.0.1:8000/api/v1/vanos${endpoint}`, {
       case_path: this.casePath
@@ -205,14 +220,58 @@ export class Sidebar {
       next: (res) => {
         this.result = res;
         this.loading = false;
+        this.emitSuccessState();
         this.actionCompletedOk.emit(this.casePath);
         this.layerSelected.emit('vanos');
       },
       error: (err) => {
         this.error = err;
         this.loading = false;
+        this.emitErrorState(this.getErrorDetail(err, `Error ejecutando ${action}.`));
       }
     });
+  }
+
+  private emitRunningState(action: string, detail?: string): void {
+    this.executionUiStateChange.emit({
+      status: 'running',
+      title: `Ejecutando ${action}...`,
+      stage: action,
+      detail
+    });
+  }
+
+  private emitSuccessState(detail = 'Última ejecución completada correctamente'): void {
+    this.executionUiStateChange.emit({
+      status: 'success',
+      title: 'Listo',
+      detail
+    });
+  }
+
+  private emitErrorState(detail: string): void {
+    this.executionUiStateChange.emit({
+      status: 'error',
+      title: 'Error',
+      detail
+    });
+  }
+
+  private getErrorDetail(error: any, fallback: string): string {
+    return error?.error?.detail || error?.message || fallback;
+  }
+
+  private detailForAction(action: string): string {
+    const details: Record<string, string> = {
+      'Guardar apoyos': 'Persistiendo geometria y actualizando el caso',
+      'Generar dominio desde apoyos': 'Construyendo dominio a partir de apoyos',
+      'Generar vanos desde apoyos': 'Calculando vanos entre apoyos',
+      'Generar DEM': 'Descargando, recortando y reproyectando raster',
+      'Generar meteorología': 'Generando ficheros meteorologicos para WindNinja',
+      'WindNinja': 'Ejecutando simulacion y postprocesos'
+    };
+
+    return details[action] || `Ejecutando ${action}`;
   }
 
   private buildPipelineUserMessage(endpoint: string, res: any): string {

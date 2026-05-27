@@ -4,8 +4,8 @@ import { RouterOutlet } from '@angular/router';
 import { Topbar } from '../topbar/topbar';
 import { Sidebar } from '../sidebar/sidebar';
 import { MapContextService, DrawMode } from '../../services/map-context.service';
-import { PipelineStatus } from '../topbar/topbar';
 import { CaseStatusResponse, DashboardService } from '../../services/dashboard.service';
+import { ExecutionUiState } from '../../models/execution-ui-state';
 import { Subject, finalize } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 
@@ -25,11 +25,9 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
   drawnGeometries: Record<string, any>[] = [];
   clearDrawToken = 0;
 
-  pipelineStatus: PipelineStatus = {
-    loading: false,
-    statusText: 'Listo',
-    result: null,
-    error: null
+  executionUiState: ExecutionUiState = {
+    status: 'idle',
+    title: 'Listo'
   };
 
   private destroy$ = new Subject<void>();
@@ -143,8 +141,12 @@ export class AppLayoutComponent implements OnInit, OnDestroy {
     this.mapContextService.refreshSelectedLayer();
   }
 
-  onPipelineStatusChange(status: PipelineStatus): void {
-    this.pipelineStatus = status;
+  get isExecutionRunning(): boolean {
+    return this.executionUiState.status === 'running';
+  }
+
+  onExecutionUiStateChange(state: ExecutionUiState): void {
+    this.executionUiState = state;
   }
 
   private loadCaseStatus(path: string): void {

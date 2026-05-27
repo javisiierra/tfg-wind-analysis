@@ -2,9 +2,10 @@
   <header class="app-header">
     <app-topbar
       [casePath]="casePath"
+      [isExecutionRunning]="isExecutionRunning"
       (folderSelected)="onFolderSelected($event)"
       (casePrepared)="onCaseActionCompleted($event)"
-      (pipelineStatusChange)="onPipelineStatusChange($event)">
+      (executionUiStateChange)="onExecutionUiStateChange($event)">
     </app-topbar>
   </header>
 
@@ -13,12 +14,14 @@
       [casePath]="casePath"
       [caseStatus]="caseStatus"
       [isCaseStatusLoading]="isCaseStatusLoading"
+      [isExecutionRunning]="isExecutionRunning"
       [drawnGeometries]="drawnGeometries"
       (layerSelected)="onLayerSelected($event)"
       (drawModeChange)="onDrawModeChange($event)"
       (clearDrawing)="onClearDrawing()"
       (caseCreated)="onCaseCreated($event)"
-      (actionCompletedOk)="onCaseActionCompleted($event)">
+      (actionCompletedOk)="onCaseActionCompleted($event)"
+      (executionUiStateChange)="onExecutionUiStateChange($event)">
     </app-sidebar>
   </aside>
 
@@ -31,7 +34,16 @@
   <section class="app-bottom-panel">
     <div class="panel-section">
       <span class="panel-label">Estado</span>
-      <strong>{{ pipelineStatus.statusText }}</strong>
+      <strong>{{ executionUiState.title }}</strong>
+      <span *ngIf="executionUiState.progress !== undefined" class="panel-detail">
+        Progreso: {{ executionUiState.progress }}%
+      </span>
+      <span *ngIf="executionUiState.stage" class="panel-detail">
+        Última etapa: {{ executionUiState.stage }}
+      </span>
+      <span *ngIf="executionUiState.detail" class="panel-detail">
+        Detalle: {{ executionUiState.detail }}
+      </span>
     </div>
 
     <div class="panel-section">

@@ -3,13 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { environment } from '../../../environments/environment';
-
-export interface PipelineStatus {
-  loading: boolean;
-  statusText: string;
-  result: any | null;
-  error: any | null;
-}
+import { ExecutionUiState } from '../../models/execution-ui-state';
 
 @Component({
   selector: 'app-topbar',
@@ -20,18 +14,18 @@ export interface PipelineStatus {
 })
 export class Topbar {
   @Input() casePath = '';
+  @Input() isExecutionRunning = false;
 
   private readonly baseCasesPath = '/data';
   private readonly apiBaseUrl = environment.apiBaseUrl;
 
   @Output() folderSelected = new EventEmitter<string>();
   @Output() casePrepared = new EventEmitter<string>();
-  @Output() pipelineStatusChange = new EventEmitter<PipelineStatus>();
+  @Output() executionUiStateChange = new EventEmitter<ExecutionUiState>();
 
   result: any = null;
   error: any = null;
   loading = false;
-  currentStep = '';
 
   constructor(
     private http: HttpClient,
@@ -54,9 +48,11 @@ export class Topbar {
         this.result = null;
         this.error = null;
         this.loading = false;
-        this.currentStep = '';
 
-        this.emitPipelineStatus();
+        this.executionUiStateChange.emit({
+          status: 'idle',
+          title: 'Listo'
+        });
       });
     } catch (err) {
       console.error('Selección de carpeta cancelada o no soportada:', err);
@@ -64,49 +60,52 @@ export class Topbar {
   }
 
   prepareCase() {
-  if (!this.casePath) {
-    this.error = { message: 'Selecciona una carpeta primero' };
-    this.emitPipelineStatus();
-    return;
-  }
-
-  this.loading = true;
-  this.result = null;
-  this.error = null;
-  this.emitPipelineStatus();
-
-  this.http.post(`${this.apiBaseUrl}/case/import-folder`, {
-    input_path: this.casePath
-  }).subscribe({
-    next: (res) => {
-      this.result = res;
-      this.loading = false;
-      this.casePrepared.emit(this.casePath);
-      this.emitPipelineStatus();
-    },
-    error: (err) => {
-      this.error = err;
-      this.loading = false;
-      this.emitPipelineStatus();
+    if (!this.casePath) {
+      this.error = { message: 'Selecciona una carpeta primero' };
+      this.emitErrorState(this.error.message);
+      return;
     }
-  });
-}
 
-     
+    this.loading = true;
+    this.result = null;
+    this.error = null;
+    this.executionUiStateChange.emit({
+      status: 'running',
+      title: 'Ejecutando preparar caso...',
+      stage: 'Importando carpeta',
+      detail: 'Preparando entradas del caso activo'
+    });
 
-  private emitPipelineStatus(): void {
-    this.pipelineStatusChange.emit({
-      loading: this.loading,
-      statusText: this.statusText,
-      result: this.result,
-      error: this.error
+    this.http.post(`${this.apiBaseUrl}/case/import-folder`, {
+      input_path: this.casePath
+    }).subscribe({
+      next: (res) => {
+        this.result = res;
+        this.loading = false;
+        this.casePrepared.emit(this.casePath);
+        this.executionUiStateChange.emit({
+          status: 'success',
+          title: 'Listo',
+          detail: 'Última ejecución completada correctamente'
+        });
+      },
+      error: (err) => {
+        this.error = err;
+        this.loading = false;
+        this.emitErrorState(this.getErrorDetail(err));
+      }
     });
   }
 
-  get statusText(): string {
-    if (this.loading) return this.currentStep || 'Preparando caso...';
-    if (this.error) return 'Error en la preparación';
-    if (this.result) return 'Caso preparado correctamente';
-    return 'Listo';
+  private emitErrorState(detail: string): void {
+    this.executionUiStateChange.emit({
+      status: 'error',
+      title: 'Error',
+      detail
+    });
+  }
+
+  private getErrorDetail(error: any): string {
+    return error?.error?.detail || error?.message || 'No se pudo preparar el caso.';
   }
 }
