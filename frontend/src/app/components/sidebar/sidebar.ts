@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { DrawMode } from '../../app';
 import { CaseStatusResponse } from '../../services/dashboard.service';
 import { ExecutionUiState } from '../../models/execution-ui-state';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-sidebar',
@@ -34,6 +35,7 @@ export class Sidebar {
   currentAction = '';
 
   caseName = '';
+  private readonly apiUrl = environment.apiUrl;
 
   constructor(private http: HttpClient) {}
 
@@ -87,7 +89,7 @@ export class Sidebar {
         }
 
         lastResponse = await this.http.post(
-          'http://127.0.0.1:8000/api/v1/supports/create',
+          `${this.apiUrl}/supports/create`,
           payload
         ).toPromise();
       }
@@ -160,7 +162,7 @@ export class Sidebar {
     this.currentAction = action;
     this.emitRunningState(action, this.detailForAction(action));
 
-    this.http.post(`http://127.0.0.1:8000/api/v1/pipeline${endpoint}`, {
+    this.http.post(`${this.apiUrl}/pipeline${endpoint}`, {
       case_path: this.casePath
     }).subscribe({
       next: (res) => {
@@ -186,7 +188,7 @@ export class Sidebar {
     this.currentAction = action;
     this.emitRunningState(action, this.detailForAction(action));
 
-    this.http.post(`http://127.0.0.1:8000/api/v1/domain${endpoint}`, {
+    this.http.post(`${this.apiUrl}/domain${endpoint}`, {
       case_path: this.casePath
     }).subscribe({
       next: (res) => {
@@ -214,7 +216,7 @@ export class Sidebar {
     this.currentAction = action;
     this.emitRunningState(action, this.detailForAction(action));
 
-    this.http.post(`http://127.0.0.1:8000/api/v1/vanos${endpoint}`, {
+    this.http.post(`${this.apiUrl}/vanos${endpoint}`, {
       case_path: this.casePath
     }).subscribe({
       next: (res) => {

@@ -98,36 +98,36 @@ export interface GenerateVanosFromSupportsResponse {
 
 @Injectable({ providedIn: 'root' })
 export class DashboardService {
-  private readonly apiBaseUrl = environment.apiBaseUrl;
+  private readonly apiUrl = environment.apiUrl;
   constructor(private http: HttpClient) {}
 
   startMeteoSummary(payload: MeteoRequestPayload): Observable<DashboardAsyncStartResponse> {
-    return this.http.post<DashboardAsyncStartResponse>(`${this.apiBaseUrl}/dashboard/meteo-summary/start`, payload);
+    return this.http.post<DashboardAsyncStartResponse>(`${this.apiUrl}/dashboard/meteo-summary/start`, payload);
   }
   getMeteoSummaryStatus(jobId: string): Observable<DashboardAsyncStatusResponse> {
-    return this.http.get<DashboardAsyncStatusResponse>(`${this.apiBaseUrl}/dashboard/meteo-summary/status/${jobId}`);
+    return this.http.get<DashboardAsyncStatusResponse>(`${this.apiUrl}/dashboard/meteo-summary/status/${jobId}`);
   }
   getMeteoSummary(payload: MeteoRequestPayload): Observable<MeteoSummary> {
-    return this.http.post<MeteoSummary>(`${this.apiBaseUrl}/dashboard/meteo-summary`, payload);
+    return this.http.post<MeteoSummary>(`${this.apiUrl}/dashboard/meteo-summary`, payload);
   }
   getWindTimeseries(payload: MeteoRequestPayload): Observable<WindTimeseries[]> {
-    return this.http.post<WindTimeseries[]>(`${this.apiBaseUrl}/dashboard/wind-timeseries`, payload);
+    return this.http.post<WindTimeseries[]>(`${this.apiUrl}/dashboard/wind-timeseries`, payload);
   }
   getWindRose(payload: MeteoRequestPayload): Observable<WindRoseData[]> {
-    return this.http.post<WindRoseData[]>(`${this.apiBaseUrl}/dashboard/wind-rose`, payload);
+    return this.http.post<WindRoseData[]>(`${this.apiUrl}/dashboard/wind-rose`, payload);
   }
   getCaseStatus(casePath: string): Observable<CaseStatusResponse> {
-    return this.http.post<CaseStatusResponse>(`${this.apiBaseUrl}/case/status`, { case_path: casePath });
+    return this.http.post<CaseStatusResponse>(`${this.apiUrl}/case/status`, { case_path: casePath });
   }
   generateDomainFromSupports(casePath: string): Observable<GenerateDomainFromSupportsResponse> {
     return this.http.post<GenerateDomainFromSupportsResponse>(
-      `${this.apiBaseUrl}/domain/generate-from-supports`,
+      `${this.apiUrl}/domain/generate-from-supports`,
       { case_path: casePath }
     );
   }
   generateVanosFromSupports(casePath: string): Observable<GenerateVanosFromSupportsResponse> {
     return this.http.post<GenerateVanosFromSupportsResponse>(
-      `${this.apiBaseUrl}/vanos/generate-from-supports`,
+      `${this.apiUrl}/vanos/generate-from-supports`,
       { case_path: casePath }
     );
   }
