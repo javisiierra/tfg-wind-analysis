@@ -397,6 +397,35 @@ def test_run_rename_for_cfg_calls_rename_service_directly(monkeypatch, tmp_path)
     }
 
 
+def test_run_wind_rose_for_cfg_calls_runner_service_directly(monkeypatch):
+    from app.services.wind import wind_rose_runner_service
+
+    cfg = SimpleNamespace()
+    called = {}
+
+    def _run_wind_rose_for_cfg(arg):
+        called["cfg"] = arg
+        return {
+            "out_csv_path": Path("out") / "wind_rose" / "wind_source_data.csv",
+            "out_plot_path": Path("out") / "wind_rose" / "wind_rose.png",
+            "out_weibull_path": Path("out") / "wind_rose" / "weibull_fit.png",
+            "cfg_csv_path": Path("case") / "WR" / "wind.csv",
+        }
+
+    monkeypatch.setattr(wind_rose_runner_service, "run_wind_rose_for_cfg", _run_wind_rose_for_cfg)
+
+    result = pipeline._run_wind_rose_for_cfg(cfg)
+
+    assert called["cfg"] is cfg
+    assert result == {
+        "status": "ok",
+        "csv": str(Path("out") / "wind_rose" / "wind_source_data.csv"),
+        "plot": str(Path("out") / "wind_rose" / "wind_rose.png"),
+        "weibull": str(Path("out") / "wind_rose" / "weibull_fit.png"),
+        "cfg_csv": str(Path("case") / "WR" / "wind.csv"),
+    }
+
+
 def test_manual_run_rename_endpoint_still_uses_common_logic(client, monkeypatch, tmp_path):
     cfg = SimpleNamespace()
     monkeypatch.setattr(pipeline, "load_cfg_from_case_or_raise", lambda _: cfg)

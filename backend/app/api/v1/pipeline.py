@@ -901,9 +901,9 @@ def _run_worst_supports_for_cfg(cfg, top_n: int = 4) -> dict[str, Any]:
 
 
 def _run_wind_rose_for_cfg(cfg) -> dict[str, Any]:
-    from app.scripts.run_local_pipeline import run_wind_rose_stage
+    from app.services.wind.wind_rose_runner_service import run_wind_rose_for_cfg
 
-    result = run_wind_rose_stage(cfg)
+    result = run_wind_rose_for_cfg(cfg)
 
     return {
         "status": "ok",
