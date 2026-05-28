@@ -28,6 +28,7 @@ import Stroke from 'ol/style/Stroke';
 import CircleStyle from 'ol/style/Circle';
 import Feature from 'ol/Feature';
 import Geometry from 'ol/geom/Geometry';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-map',
@@ -60,6 +61,7 @@ export class MapComponent implements AfterViewInit, OnChanges {
   private tooltipElement: HTMLElement | null = null;
   private currentTooltipLayer = '';
   private drawnSupportCoordinates: number[][] = [];
+  private readonly apiUrl = environment.apiUrl;
 
   ngAfterViewInit(): void {
     this.tooltipElement = document.getElementById('map-tooltip');
@@ -307,7 +309,7 @@ export class MapComponent implements AfterViewInit, OnChanges {
   private fetchLayerData(layerName: string, casePath: string): Promise<any> {
     const endpoint = this.getLayerEndpoint(layerName);
 
-    return fetch(`http://127.0.0.1:8000/api/v1/layers/${endpoint}`, {
+    return fetch(`${this.apiUrl}/layers/${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ case_path: casePath })
@@ -333,7 +335,7 @@ export class MapComponent implements AfterViewInit, OnChanges {
       return;
     }
 
-    fetch(`http://127.0.0.1:8000/api/v1/layers/${endpoint}`, {
+    fetch(`${this.apiUrl}/layers/${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ case_path: casePath })

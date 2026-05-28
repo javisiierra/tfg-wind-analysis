@@ -1,15 +1,16 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+﻿import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 
 import { Topbar } from './topbar';
+import { environment } from '../../../environments/environment';
 
 describe('Topbar', () => {
   let component: Topbar;
   let fixture: ComponentFixture<Topbar>;
   let httpMock: HttpTestingController;
 
-  const apiBaseUrl = 'http://localhost:8000/api/v1';
+  const apiUrl = environment.apiUrl;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
@@ -47,7 +48,7 @@ describe('Topbar', () => {
 
     component.prepareCase();
 
-    const req = httpMock.expectOne(`${apiBaseUrl}/case/import-folder`);
+    const req = httpMock.expectOne(`${apiUrl}/case/import-folder`);
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual({ input_path: '/data/case-a' });
     req.flush({ status: 'ready', case_path: '/data/case-a' });
@@ -62,7 +63,7 @@ describe('Topbar', () => {
 
     const promise = component.executePreparationPipeline();
 
-    flushRequest(`${apiBaseUrl}/case/status`, {
+    flushRequest(`${apiUrl}/case/status`, {
       status: 'ok',
       case_path: component.casePath,
       has_domain: true,
@@ -74,16 +75,16 @@ describe('Topbar', () => {
     });
     await tickPromises();
 
-    httpMock.expectNone(`${apiBaseUrl}/domain/generate-from-supports`);
-    httpMock.expectNone(`${apiBaseUrl}/vanos/generate-from-supports`);
+    httpMock.expectNone(`${apiUrl}/domain/generate-from-supports`);
+    httpMock.expectNone(`${apiUrl}/vanos/generate-from-supports`);
 
-    flushRequest(`${apiBaseUrl}/domain/generate-dem`, { status: 'ok' });
+    flushRequest(`${apiUrl}/domain/generate-dem`, { status: 'ok' });
     await tickPromises();
 
-    flushRequest(`${apiBaseUrl}/domain/generate-weather`, { status: 'ok' });
+    flushRequest(`${apiUrl}/domain/generate-weather`, { status: 'ok' });
     await tickPromises();
 
-    flushRequest(`${apiBaseUrl}/pipeline/run-windninja`, {
+    flushRequest(`${apiUrl}/pipeline/run-windninja`, {
       status: 'ok',
       windninja_success: true,
       rename_success: true,
@@ -99,7 +100,7 @@ describe('Topbar', () => {
 
     const promise = component.executePreparationPipeline();
 
-    flushRequest(`${apiBaseUrl}/case/status`, {
+    flushRequest(`${apiUrl}/case/status`, {
       status: 'ok',
       case_path: component.casePath,
       has_domain: false,
@@ -111,10 +112,10 @@ describe('Topbar', () => {
     });
     await tickPromises();
 
-    flushRequest(`${apiBaseUrl}/domain/generate-from-supports`, { status: 'ok' });
+    flushRequest(`${apiUrl}/domain/generate-from-supports`, { status: 'ok' });
     await tickPromises();
 
-    flushRequest(`${apiBaseUrl}/case/status`, {
+    flushRequest(`${apiUrl}/case/status`, {
       status: 'ok',
       case_path: component.casePath,
       has_domain: true,
@@ -126,16 +127,16 @@ describe('Topbar', () => {
     });
     await tickPromises();
 
-    flushRequest(`${apiBaseUrl}/vanos/generate-from-supports`, { status: 'ok' });
+    flushRequest(`${apiUrl}/vanos/generate-from-supports`, { status: 'ok' });
     await tickPromises();
 
-    flushRequest(`${apiBaseUrl}/domain/generate-dem`, { status: 'ok' });
+    flushRequest(`${apiUrl}/domain/generate-dem`, { status: 'ok' });
     await tickPromises();
 
-    flushRequest(`${apiBaseUrl}/domain/generate-weather`, { status: 'ok' });
+    flushRequest(`${apiUrl}/domain/generate-weather`, { status: 'ok' });
     await tickPromises();
 
-    flushRequest(`${apiBaseUrl}/pipeline/run-windninja`, { status: 'ok', windninja_success: true });
+    flushRequest(`${apiUrl}/pipeline/run-windninja`, { status: 'ok', windninja_success: true });
     await promise;
 
     expect(component.result?.['windninja_success']).toBe(true);
@@ -148,7 +149,7 @@ describe('Topbar', () => {
 
     const promise = component.executePreparationPipeline();
 
-    flushRequest(`${apiBaseUrl}/case/status`, {
+    flushRequest(`${apiUrl}/case/status`, {
       status: 'ok',
       case_path: component.casePath,
       has_domain: true,
@@ -160,12 +161,12 @@ describe('Topbar', () => {
     });
     await tickPromises();
 
-    const demReq = httpMock.expectOne(`${apiBaseUrl}/domain/generate-dem`);
+    const demReq = httpMock.expectOne(`${apiUrl}/domain/generate-dem`);
     demReq.flush({ detail: 'DEM failed' }, { status: 500, statusText: 'Server Error' });
     await promise;
 
-    httpMock.expectNone(`${apiBaseUrl}/domain/generate-weather`);
-    httpMock.expectNone(`${apiBaseUrl}/pipeline/run-windninja`);
+    httpMock.expectNone(`${apiUrl}/domain/generate-weather`);
+    httpMock.expectNone(`${apiUrl}/pipeline/run-windninja`);
     expect(stateSpy).toHaveBeenLastCalledWith({
       status: 'error',
       title: 'Error',

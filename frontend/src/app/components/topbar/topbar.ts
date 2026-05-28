@@ -34,7 +34,7 @@ export class Topbar {
   @Input() isExecutionRunning = false;
 
   private readonly baseCasesPath = '/data';
-  private readonly apiBaseUrl = environment.apiBaseUrl;
+  private readonly apiUrl = environment.apiUrl;
 
   @Output() folderSelected = new EventEmitter<string>();
   @Output() casePrepared = new EventEmitter<string>();
@@ -95,7 +95,7 @@ export class Topbar {
       detail: 'Adaptando la carpeta externa al formato del caso'
     });
 
-    this.http.post(`${this.apiBaseUrl}/case/import-folder`, {
+    this.http.post(`${this.apiUrl}/case/import-folder`, {
       input_path: this.casePath
     }).subscribe({
       next: (res) => {
@@ -138,7 +138,7 @@ export class Topbar {
         await this.runStep(
           'Generando dominio',
           15,
-          `${this.apiBaseUrl}/domain/generate-from-supports`,
+          `${this.apiUrl}/domain/generate-from-supports`,
           payload
         );
         status = await this.getCaseStatus(this.casePath);
@@ -150,7 +150,7 @@ export class Topbar {
         await this.runStep(
           'Generando vanos',
           30,
-          `${this.apiBaseUrl}/vanos/generate-from-supports`,
+          `${this.apiUrl}/vanos/generate-from-supports`,
           payload
         );
       } else {
@@ -160,21 +160,21 @@ export class Topbar {
       await this.runStep(
         'Generando DEM',
         50,
-        `${this.apiBaseUrl}/domain/generate-dem`,
+        `${this.apiUrl}/domain/generate-dem`,
         payload
       );
 
       await this.runStep(
         'Generando meteorología',
         70,
-        `${this.apiBaseUrl}/domain/generate-weather`,
+        `${this.apiUrl}/domain/generate-weather`,
         payload
       );
 
       const windninjaResult = await this.runStep(
         'Ejecutando WindNinja y postprocesado',
         90,
-        `${this.apiBaseUrl}/pipeline/run-windninja`,
+        `${this.apiUrl}/pipeline/run-windninja`,
         payload
       );
 
@@ -241,7 +241,7 @@ export class Topbar {
 
   private async getCaseStatus(casePath: string): Promise<CaseStatusResponse> {
     return this.postPipelineStep<CaseStatusResponse>(
-      `${this.apiBaseUrl}/case/status`,
+      `${this.apiUrl}/case/status`,
       { case_path: casePath }
     );
   }

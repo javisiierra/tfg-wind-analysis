@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import traceback
@@ -8,12 +7,16 @@ import numpy as np
 
 import geopandas as gpd
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from shapely.geometry import shape, LineString, box
 
 from app.core.config import load_config_from_case
 from app.core.paths import normalize_case_path
+from app.api.v1.layer_response import (
+    _enrich_worst_supports_geojson,
+    geojson_file_to_geojson_response,
+    shapefile_to_geojson_response,
+)
 from app.services.case_import.import_folder_service import import_folder_from_input_path
 from app.services.vanos.vanos_from_supports_service import (
     VanosGenerationError,
@@ -103,160 +106,6 @@ def create_case_structure(base_root: Path, case_name: str) -> dict[str, Path]:
 
 def get_or_create_case_structure(case_name: str) -> dict[str, Path]:
     return create_case_structure(BASE_ROOT, case_name)
-
-
-def _first_property(props: dict[str, Any], names: list[str]) -> Any:
-    for name in names:
-        value = props.get(name)
-        if value is not None and value != "":
-            return value
-    return None
-
-
-def _support_label_from_value(value: Any) -> str | None:
-    if value is None or value == "":
-        return None
-    text = str(value).strip()
-    if not text:
-        return None
-    try:
-        if text.replace(".", "", 1).isdigit():
-            return f"AP-{int(float(text))}"
-    except ValueError:
-        pass
-    return text
-
-
-def _enrich_worst_supports_geojson(geojson: dict[str, Any]) -> dict[str, Any]:
-    enriched_count = 0
-
-    for feature in geojson.get("features", []):
-        props = feature.get("properties") or {}
-        feature["properties"] = props
-
-        vperp_min = _first_property(props, ["vperp_min", "v_perp", "critical_metric"])
-        w_speed = _first_property(props, ["w_speed", "wind_speed"])
-        w_dir = _first_property(props, ["w_dir", "wind_dir", "wind_direction"])
-        alpha = _first_property(props, ["alpha", "alpha_eff", "angle_relative"])
-        from_support = _first_property(props, ["from_support", "from_supp", "from_suppo", "from_ap"])
-        to_support = _first_property(props, ["to_support", "to_supp", "to_ap"])
-        from_order = _first_property(props, ["from_order", "from_ord", "from_idx"])
-        to_order = _first_property(props, ["to_order", "to_ord", "to_idx"])
-
-        from_support = _support_label_from_value(from_support) or _support_label_from_value(from_order)
-        to_support = _support_label_from_value(to_support) or _support_label_from_value(to_order)
-        span_label = _first_property(props, ["span_label", "span_labe"])
-        if span_label is None and from_support is not None and to_support is not None:
-            span_label = f"{from_support} -> {to_support}"
-
-        if vperp_min is not None:
-            props.setdefault("critical_metric", vperp_min)
-            props.setdefault("critical_metric_unit", "m/s")
-            props.setdefault(
-                "critical_reason",
-                "Menor componente perpendicular sobre el vano entre escenarios WindNinja",
-            )
-            enriched_count += 1
-
-        if w_speed is not None:
-            props.setdefault("wind_speed", w_speed)
-            props.setdefault("wind_speed_unit", "m/s")
-
-        if w_dir is not None:
-            props.setdefault("wind_direction", w_dir)
-
-        if alpha is not None:
-            props.setdefault("angle_relative", alpha)
-            props.setdefault("angle_relative_unit", "deg")
-
-        if from_support is not None:
-            props.setdefault("from_support", from_support)
-            props.setdefault("from_support_id", from_support)
-
-        if to_support is not None:
-            props.setdefault("to_support", to_support)
-            props.setdefault("to_support_id", to_support)
-
-        if from_order is not None:
-            props.setdefault("from_order", from_order)
-
-        if to_order is not None:
-            props.setdefault("to_order", to_order)
-
-        if span_label is not None:
-            props.setdefault("span_label", span_label)
-
-    logger.info(
-        "worst_supports GeoJSON enriched",
-        extra={
-            "features": len(geojson.get("features", [])),
-            "enriched_features": enriched_count,
-            "aliases": [
-                "critical_metric",
-                "critical_metric_unit",
-                "critical_reason",
-                "wind_speed",
-                "wind_speed_unit",
-                "wind_direction",
-                "angle_relative",
-                "angle_relative_unit",
-            ],
-        },
-    )
-
-    return geojson
-
-
-def shapefile_to_geojson_response(shp_path: Path, layer_name: str):
-    if not shp_path.exists():
-        raise HTTPException(
-            status_code=404,
-            detail=f"No existe el shapefile de {layer_name}: {shp_path}",
-        )
-
-    try:
-        gdf = gpd.read_file(shp_path)
-
-        if gdf.empty:
-            raise HTTPException(
-                status_code=404,
-                detail=f"El shapefile de {layer_name} está vacío: {shp_path}",
-            )
-
-        if gdf.crs is None:
-            gdf = gdf.set_crs(epsg=25830)
-
-        gdf = gdf.to_crs(epsg=4326)
-        geojson = json.loads(gdf.to_json())
-
-        if layer_name == "worst_supports":
-            geojson = _enrich_worst_supports_geojson(geojson)
-
-        return JSONResponse(content=geojson)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"No se pudo leer el shapefile de {layer_name}: {e}",
-        )
-
-
-def geojson_file_to_geojson_response(geojson_path: Path, layer_name: str):
-    if not geojson_path.exists():
-        raise HTTPException(
-            status_code=404,
-            detail=f"No existe el GeoJSON de {layer_name}: {geojson_path}",
-        )
-
-    try:
-        return JSONResponse(content=json.loads(geojson_path.read_text(encoding="utf-8")))
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"No se pudo leer el GeoJSON de {layer_name}: {e}",
-        )
 
 
 def get_existing_path(*paths: Path) -> Path | None:
@@ -974,17 +823,22 @@ def run_preparation(request: PipelineRequest):
     "/pipeline/run-base",
     tags=["Pipeline legacy"],
     summary="LEGACY - Ejecutar pipeline base antiguo",
-    description="Flujo antiguo completo. No debe usarse en casos importados ni generados desde apoyos.",
+    description=(
+        "LEGACY FLOW. Flujo antiguo completo. Se conserva por compatibilidad, pero el flujo "
+        "moderno equivalente usa /domain/generate-from-supports, /domain/generate-dem, "
+        "/domain/generate-weather y /pipeline/run-windninja."
+    ),
 )
 def run_base_pipeline(request: PipelineRequest):
+    """LEGACY FLOW: compatibilidad con el pipeline antiguo basado en towers/perfiles."""
     cfg = load_cfg_from_case_or_raise(request.case_path)
 
     try:
         run_geometry_and_dem(cfg)
 
-        # 👇 IMPORTANTE
+        # LEGACY FLOW: si los apoyos ya existen, no se regenera la etapa towers.
         if cfg.out_apoyos_shp and Path(cfg.out_apoyos_shp).exists():
-            # Ya existen apoyos → no ejecutar towers
+            # Ya existen apoyos -> no ejecutar towers.
             towers_result = "skipped"
         else:
             run_towers(cfg)
@@ -1109,7 +963,7 @@ def run_windninja_api(request: PipelineRequest):
             wind_rose_success = True
             logger.info("[run-windninja] Wind rose completed")
         except Exception as exc:
-            wind_rose_warning = f"WindNinja finalizÃ³, pero fallÃ³ la generaciÃ³n de la rosa de vientos: {exc}"
+            wind_rose_warning = f"WindNinja finalizó, pero falló la generación de la rosa de vientos: {exc}"
             postprocess_warnings.append(wind_rose_warning)
             logger.warning("[run-windninja] Wind rose failed: %s", exc)
 
@@ -1147,11 +1001,15 @@ def run_windninja_api(request: PipelineRequest):
 
 @router.post(
     "/pipeline/run-rename",
-    tags=["Pipeline"],
-    summary="Renombrar outputs",
-    description="Renombra los outputs generados por WindNinja.",
+    tags=["Pipeline manual/debug"],
+    summary="MANUAL/DEBUG - Renombrar outputs",
+    description=(
+        "Utilidad manual/debug. En el flujo moderno se ejecuta automáticamente dentro de "
+        "/pipeline/run-windninja."
+    ),
 )
 def run_rename_api(request: PipelineRequest):
+    """MANUAL/DEBUG: run-windninja invoca este postproceso automáticamente."""
     cfg = load_cfg_from_case_or_raise(request.case_path)
 
     try:
@@ -1168,11 +1026,15 @@ def run_rename_api(request: PipelineRequest):
 
 @router.post(
     "/pipeline/run-wind-rose",
-    tags=["Pipeline"],
-    summary="Calcular rosa de vientos",
-    description="Genera la rosa de vientos y ajuste Weibull.",
+    tags=["Pipeline manual/debug"],
+    summary="MANUAL/DEBUG - Calcular rosa de vientos",
+    description=(
+        "Utilidad manual/debug. En el flujo moderno se ejecuta automáticamente dentro de "
+        "/pipeline/run-windninja."
+    ),
 )
 def run_wind_rose_api(request: PipelineRequest):
+    """MANUAL/DEBUG: run-windninja invoca este postproceso automáticamente."""
     cfg = load_cfg_from_case_or_raise(request.case_path)
 
     try:
@@ -1346,11 +1208,15 @@ def get_worst_supports_layer(request: PipelineRequest):
 
 @router.post(
     "/analysis/worst-supports",
-    tags=["Análisis"],
-    summary="Calcular vanos críticos",
-    description="Calcula los N vanos/tramos más críticos según los resultados.",
+    tags=["Análisis manual/debug"],
+    summary="MANUAL/DEBUG - Calcular vanos críticos",
+    description=(
+        "Utilidad manual/debug. En el flujo moderno se ejecuta automáticamente dentro de "
+        "/pipeline/run-windninja después del rename."
+    ),
 )
 def worst_supports_api(request: PipelineRequest, top_n: int = 4):
+    """MANUAL/DEBUG: run-windninja invoca este análisis automáticamente tras rename."""
     cfg = load_cfg_from_case_or_raise(request.case_path)
 
     try:

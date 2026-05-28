@@ -3,6 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 
 import { Sidebar } from './sidebar';
+import { environment } from '../../../environments/environment';
 
 describe('Sidebar', () => {
   let component: Sidebar;
@@ -59,7 +60,7 @@ describe('Sidebar', () => {
 
     component.runWindNinja();
 
-    const req = httpMock.expectOne('http://127.0.0.1:8000/api/v1/pipeline/run-windninja');
+    const req = httpMock.expectOne(`${environment.apiUrl}/pipeline/run-windninja`);
     req.flush({
       status: 'ok',
       rename_success: true,
@@ -78,7 +79,7 @@ describe('Sidebar', () => {
 
     component.runWindNinja();
 
-    const req = httpMock.expectOne('http://127.0.0.1:8000/api/v1/pipeline/run-windninja');
+    const req = httpMock.expectOne(`${environment.apiUrl}/pipeline/run-windninja`);
     req.flush({
       status: 'ok',
       rename_success: true,
