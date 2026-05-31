@@ -6,14 +6,16 @@ from typing import Iterable
 import geopandas as gpd
 import pandas as pd
 from fastapi import HTTPException
-from shapely.geometry import Point, Polygon, box
+from shapely.geometry import Point
 from shapely.wkt import loads as load_wkt
 
 from app.core.paths import normalize_case_path
+from app.services.domain.generation_service import DomainGenerationError, DomainGenerationService
 
 
 SUPPORTED_EXCEL_SUFFIXES = {".xlsx", ".xls"}
 SUPPORTED_SHAPE_EXTENSIONS = {".shp", ".dbf", ".shx", ".prj", ".cpg", ".qpj"}
+domain_generation_service = DomainGenerationService()
 
 
 def _ensure_case_dirs(case_root: Path) -> dict[str, Path]:
@@ -230,42 +232,6 @@ def _copy_shapefile_components(source_shp: Path, target_shp: Path) -> None:
             target.write_bytes(source.read_bytes())
 
 
-def _create_domain_from_trace(trace_shp: Path, domain_shp: Path, buffer_m: float = 100.0) -> gpd.GeoDataFrame:
-    gdf = gpd.read_file(trace_shp)
-
-    if gdf.empty:
-        raise HTTPException(
-            status_code=400,
-            detail=f"El shapefile de traza está vacío: {trace_shp}",
-        )
-
-    if gdf.crs is None:
-        gdf = gdf.set_crs(epsg=25830)
-
-    minx, miny, maxx, maxy = gdf.total_bounds
-    if minx == maxx or miny == maxy:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "No se pudo calcular el dominio porque la traza tiene límites nulos. "
-                f"Bounds: {gdf.total_bounds}"
-            ),
-        )
-
-    buffer_value = max(buffer_m, max((maxx - minx), (maxy - miny)) * 0.05)
-    polygon = box(minx - buffer_value, miny - buffer_value, maxx + buffer_value, maxy + buffer_value)
-    domain_gdf = gpd.GeoDataFrame(
-        {"tipo": ["dominio"]},
-        geometry=[polygon],
-        crs=gdf.crs,
-    )
-
-    domain_shp.parent.mkdir(parents=True, exist_ok=True)
-    domain_gdf.to_file(domain_shp, driver="ESRI Shapefile", encoding="UTF-8")
-
-    return domain_gdf
-
-
 def _copy_excel_to_case(excel_path: Path, destino: Path) -> Path:
     destino.parent.mkdir(parents=True, exist_ok=True)
     destino.write_bytes(excel_path.read_bytes())
@@ -301,9 +267,10 @@ def import_folder_from_input_path(input_path: str) -> dict[str, str]:
     root_trace_shp = case_root / f"{case_name}.shp"
     _copy_shapefile_components(trace_shp, root_trace_shp)
 
-    domain_shp = paths["shp"] / "dominio.shp"
-    domain_gdf = _create_domain_from_trace(target_trace_shp, domain_shp)
-    _write_geojson(domain_gdf, paths["shp"] / "dominio.geojson")
+    try:
+        domain_generation_service.generate_from_trace(case_root, target_trace_shp)
+    except DomainGenerationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return {
         "case_path": str(case_root),

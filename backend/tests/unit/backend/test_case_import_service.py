@@ -11,6 +11,7 @@ def _load_service_module():
     fake_gpd = types.SimpleNamespace(GeoDataFrame=lambda *a, **k: None)
     fake_geom = types.SimpleNamespace(
         Point=lambda x, y: (x, y),
+        LineString=lambda coords: ("line", coords),
         Polygon=object,
         box=lambda *a, **k: ("box", a),
     )

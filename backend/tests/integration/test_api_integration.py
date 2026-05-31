@@ -205,6 +205,9 @@ def test_run_preparation_does_not_use_legacy_pipeline_or_towers(client, monkeypa
 
 
 def _windninja_cfg(tmp_path: Path):
+    domain = tmp_path / "SHP" / "dominio.shp"
+    domain.parent.mkdir(parents=True)
+    domain.touch()
     dem = tmp_path / "MDT_WN" / "mdt.tif"
     dem.parent.mkdir(parents=True)
     dem.touch()
@@ -212,6 +215,7 @@ def _windninja_cfg(tmp_path: Path):
     weather.parent.mkdir(parents=True)
     weather.touch()
     return SimpleNamespace(
+        in_shp=domain,
         in_weather_file=weather,
         out_mdt_tif=dem,
     )
@@ -227,6 +231,17 @@ def _windninja_result(returncode: int = 0):
         "new_files": ["a.asc"],
         "returncode": returncode,
     }
+
+
+def test_run_windninja_requires_canonical_domain(client, monkeypatch, tmp_path):
+    cfg = _windninja_cfg(tmp_path)
+    (tmp_path / "SHP" / "dominio.shp").unlink()
+    monkeypatch.setattr(pipeline, "load_cfg_from_case_or_raise", lambda _: cfg)
+
+    response = client.post("/api/v1/pipeline/run-windninja", json={"case_path": str(tmp_path)})
+
+    assert response.status_code == 400
+    assert "dominio canónico" in response.json()["detail"]
 
 
 def test_run_windninja_failure_does_not_call_postprocess(client, monkeypatch, tmp_path):
