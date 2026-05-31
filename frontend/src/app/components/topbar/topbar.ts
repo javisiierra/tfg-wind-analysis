@@ -5,6 +5,7 @@ import { CommonModule } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { ExecutionUiState } from '../../models/execution-ui-state';
+import { selectAllowedCasePath } from '../../services/case-selection';
 
 interface CaseStatusResponse {
   status?: string;
@@ -33,7 +34,6 @@ export class Topbar {
   @Input() casePath = '';
   @Input() isExecutionRunning = false;
 
-  private readonly baseCasesPath = '/data';
   private readonly apiUrl = environment.apiUrl;
 
   @Output() folderSelected = new EventEmitter<string>();
@@ -51,17 +51,15 @@ export class Topbar {
     private ngZone: NgZone
   ) {}
 
-  onCasePathInputChange(path: string): void {
-    this.casePath = path;
-    this.folderSelected.emit(path);
-  }
-
   async selectFolder() {
     try {
-      const dirHandle = await (window as any).showDirectoryPicker();
+      const selectedPath = await selectAllowedCasePath(this.http, this.apiUrl);
+      if (!selectedPath) {
+        return;
+      }
 
       this.ngZone.run(() => {
-        this.casePath = `${this.baseCasesPath}/${dirHandle.name}`;
+        this.casePath = selectedPath;
         this.folderSelected.emit(this.casePath);
 
         this.result = null;
@@ -74,7 +72,9 @@ export class Topbar {
         });
       });
     } catch (err) {
-      console.error('Seleccion de carpeta cancelada o no soportada:', err);
+      this.error = err;
+      this.emitErrorState(this.getErrorDetail(err, 'No se pudo seleccionar una carpeta permitida.'));
+      console.error('No se pudo seleccionar una carpeta permitida:', err);
     }
   }
 

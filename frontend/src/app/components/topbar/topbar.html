@@ -11,9 +11,9 @@
   <div class="case-control">
     <input
       [ngModel]="casePath"
-      (ngModelChange)="onCasePathInputChange($event)"
-      placeholder="Ruta de la carpeta del caso"
-      title="Ruta de la carpeta del caso"
+      placeholder="Selecciona una carpeta permitida"
+      title="Ruta del caso seleccionado dentro de HOST_CASES_ROOT"
+      readonly
     />
 
     <button class="btn secondary" (click)="selectFolder()" [disabled]="loading || isExecutionRunning">

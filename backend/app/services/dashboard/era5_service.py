@@ -8,6 +8,7 @@ import geopandas as gpd
 import pandas as pd
 
 from app.core.config import load_config_from_case
+from app.core.paths import resolve_case_path
 from app.services.wind.source_service import fetch_era5_hourly_point
 
 
@@ -15,7 +16,7 @@ class Era5Service:
 
     def _resolve_point(self, case_path: str | None) -> tuple[float, float]:
         if case_path:
-            case_root = Path(case_path)
+            case_root = resolve_case_path(case_path)
             domain_candidates = [case_root / "SHP" / "dominio.geojson", case_root / "SHP" / "dominio.shp"]
             for domain_path in domain_candidates:
                 if not domain_path.exists():

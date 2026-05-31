@@ -56,6 +56,23 @@ describe('Topbar', () => {
     expect(completedSpy).toHaveBeenCalledWith('/data/case-a');
   });
 
+  it('Seleccionar carpeta should only use cases listed by the backend', async () => {
+    const selectedSpy = vi.fn();
+    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('1');
+    component.folderSelected.subscribe(selectedSpy);
+
+    const promise = component.selectFolder();
+
+    const req = httpMock.expectOne(`${apiUrl}/case/list`);
+    expect(req.request.method).toBe('GET');
+    req.flush({ cases: [{ name: 'case-a', case_path: '/data/case-a' }] });
+    await promise;
+
+    expect(promptSpy).toHaveBeenCalled();
+    expect(selectedSpy).toHaveBeenCalledWith('/data/case-a');
+    expect(component.casePath).toBe('/data/case-a');
+  });
+
   it('Ejecutar preparación should skip existing domain and vanos', async () => {
     const completedSpy = vi.fn();
     component.casePath = '/data/case-ready-inputs';

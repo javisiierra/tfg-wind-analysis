@@ -10,6 +10,7 @@ import geopandas as gpd
 import pandas as pd
 from shapely.geometry import Point, box, shape
 
+from app.core.paths import resolve_case_path
 from app.services.weather.era5_service import (
     analyze_wind_for_dashboard,
     download_era5_for_bbox_year,
@@ -298,7 +299,7 @@ class WeatherDashboardService:
 
         case_path = descriptor.get("case_path")
         if case_path:
-            base = Path(case_path)
+            base = resolve_case_path(case_path)
 
             domain_bounds = self._read_case_domain_bounds(base)
 

@@ -3,6 +3,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from importlib.util import find_spec
 
+import pytest
+
 
 BACKEND_ROOT = Path(__file__).resolve().parents[3]
 if str(BACKEND_ROOT) not in sys.path:
@@ -35,3 +37,9 @@ if find_spec("pyproj") is None:
 
 if find_spec("pandas") is None:
     sys.modules.setdefault("pandas", SimpleNamespace(read_csv=lambda *a, **k: None, to_datetime=lambda v, utc=True: v))
+
+
+@pytest.fixture(autouse=True)
+def cases_root(monkeypatch, tmp_path):
+    monkeypatch.setenv("CASES_ROOT", str(tmp_path))
+    monkeypatch.delenv("HOST_CASES_ROOT", raising=False)

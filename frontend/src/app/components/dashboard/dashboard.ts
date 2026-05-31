@@ -1,12 +1,15 @@
 import { Component, NgZone, OnDestroy, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
 import { Subject, Subscription, interval } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { Chart, ChartConfiguration, ChartOptions, registerables } from 'chart.js';
 
 import { DashboardAsyncStatusResponse, DashboardService, MeteoRequestPayload } from '../../services/dashboard.service';
+import { selectAllowedCasePath } from '../../services/case-selection';
 import { MapContextService } from '../../services/map-context.service';
+import { environment } from '../../../environments/environment';
 
 Chart.register(...registerables);
 
@@ -102,7 +105,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   chartContainerId = 'monthly-wind-chart';
   private destroy$ = new Subject<void>();
 
-  private readonly baseCasesPath = '/data';
+  private readonly apiUrl = environment.apiUrl;
   readonly windRoseDirections = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
   readonly windRoseRings = [3, 6, 9, 12];
   private readonly windRoseCenter = 210;
@@ -161,6 +164,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   constructor(
     private dashboardService: DashboardService,
     private mapContextService: MapContextService,
+    private http: HttpClient,
     private zone: NgZone,
     private cdr: ChangeDetectorRef
   ) {
@@ -197,8 +201,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   async selectFolderFromDashboard(): Promise<void> {
     try {
-      const dirHandle = await (window as any).showDirectoryPicker();
-      const selectedPath = `${this.baseCasesPath}/${dirHandle.name}`;
+      const selectedPath = await selectAllowedCasePath(this.http, this.apiUrl);
+      if (!selectedPath) {
+        return;
+      }
 
       this.casePath = selectedPath;
       this.mapContextService.setCasePath(selectedPath);
@@ -206,7 +212,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
       this.canGenerateDomain = false;
       this.domainGenerationMessage = null;
     } catch (err) {
-      console.error('Selección de carpeta cancelada o no soportada:', err);
+      this.error = err instanceof Error ? err.message : 'No se pudo seleccionar una carpeta permitida.';
+      console.error('No se pudo seleccionar una carpeta permitida:', err);
     }
   }
 

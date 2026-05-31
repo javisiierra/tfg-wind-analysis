@@ -1,5 +1,4 @@
 import logging
-import os
 import re
 import traceback
 from pathlib import Path
@@ -12,7 +11,7 @@ from pydantic import BaseModel
 from shapely.geometry import shape, LineString, box
 
 from app.core.config import load_config_from_case
-from app.core.paths import normalize_case_path
+from app.core.paths import get_cases_root, normalize_case_path
 from app.api.v1.layer_response import (
     _enrich_worst_supports_geojson,
     geojson_file_to_geojson_response,
@@ -35,7 +34,7 @@ from app.scripts.run_local_pipeline import (
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-BASE_ROOT = normalize_case_path(Path(os.getenv("HOST_CASES_ROOT", r"C:\Datos_TFG")))
+BASE_ROOT = get_cases_root()
 
 
 # ============================================================
@@ -85,7 +84,7 @@ def load_cfg_from_case_or_raise(case_path: str):
 
 
 def create_case_structure(base_root: Path, case_name: str) -> dict[str, Path]:
-    case_path = base_root / case_name
+    case_path = normalize_case_path(base_root / case_name)
 
     folders = {
         "case": case_path,
@@ -406,7 +405,7 @@ def create_support(request: SupportCreateRequest):
         if request.case_path:
             case_path = normalize_case_path(request.case_path)
         elif request.case_name:
-            case_path = BASE_ROOT / request.case_name
+            case_path = normalize_case_path(request.case_name)
         else:
             raise HTTPException(status_code=400, detail="Debe indicarse case_path o case_name.")
 
@@ -1083,11 +1082,37 @@ def run_wind_rose_api(request: PipelineRequest):
 )
 def import_folder_api(request: FolderImportRequest):
     try:
-        return import_folder_from_input_path(request.input_path)
+        return import_folder_from_input_path(str(normalize_case_path(request.input_path)))
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error importando carpeta: {e}")
+
+
+@router.get(
+    "/case/list",
+    tags=["Case"],
+    summary="Listar carpetas de casos permitidas",
+    description="Devuelve exclusivamente las carpetas de primer nivel contenidas en CASES_ROOT.",
+)
+def list_cases():
+    cases_root = get_cases_root()
+    if not cases_root.exists():
+        return {"cases": []}
+    if not cases_root.is_dir():
+        raise HTTPException(status_code=500, detail="CASES_ROOT no es una carpeta válida.")
+
+    cases = []
+    for candidate in sorted(cases_root.iterdir(), key=lambda path: path.name.lower()):
+        if not candidate.is_dir():
+            continue
+        try:
+            case_path = normalize_case_path(candidate)
+        except HTTPException:
+            continue
+        cases.append({"name": candidate.name, "case_path": str(case_path)})
+
+    return {"cases": cases}
 
 
 # ============================================================

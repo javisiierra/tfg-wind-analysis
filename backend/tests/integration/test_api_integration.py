@@ -23,10 +23,32 @@ def client():
     return TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def cases_root(monkeypatch, tmp_path):
+    monkeypatch.setenv("CASES_ROOT", str(tmp_path))
+    monkeypatch.delenv("HOST_CASES_ROOT", raising=False)
+
+
 def test_health_status_ok(client):
     response = client.get("/api/v1/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_list_cases_only_returns_directories_inside_cases_root(client, tmp_path):
+    (tmp_path / "case_b").mkdir()
+    (tmp_path / "case_a").mkdir()
+    (tmp_path / "not_a_case.txt").write_text("ignored", encoding="utf-8")
+
+    response = client.get("/api/v1/case/list")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "cases": [
+            {"name": "case_a", "case_path": str((tmp_path / "case_a").resolve())},
+            {"name": "case_b", "case_path": str((tmp_path / "case_b").resolve())},
+        ]
+    }
 
 
 def test_import_folder_endpoint_uses_service_mock(client, monkeypatch, tmp_path):
@@ -118,6 +140,39 @@ def test_controlled_errors_case_not_found_and_invalid_supports(client, monkeypat
 def test_controlled_error_invalid_parameters(client):
     response = client.post("/api/v1/domain/generate-from-supports", json={"case_path": 123, "buffer_m": "abc"})
     assert response.status_code == 422
+
+
+def test_case_status_rejects_parent_traversal(client):
+    response = client.post("/api/v1/case/status", json={"case_path": "../outside"})
+
+    assert response.status_code == 400
+    assert "segmentos '..'" in response.json()["detail"]
+
+
+def test_case_status_rejects_absolute_path_outside_cases_root(client, tmp_path):
+    response = client.post(
+        "/api/v1/case/status",
+        json={"case_path": str(tmp_path.parent / "outside")},
+    )
+
+    assert response.status_code == 403
+    assert "dentro de CASES_ROOT" in response.json()["detail"]
+
+
+def test_support_create_rejects_case_name_that_writes_outside_cases_root(client, tmp_path):
+    outside = tmp_path.parent / "outside"
+
+    response = client.post(
+        "/api/v1/supports/create",
+        json={
+            "case_name": "../outside",
+            "geometry": {"type": "Point", "coordinates": [-5.8, 43.3]},
+        },
+    )
+
+    assert response.status_code == 400
+    assert "segmentos '..'" in response.json()["detail"]
+    assert not outside.exists()
 
 
 def test_worst_supports_geojson_enrichment_keeps_existing_metrics():
