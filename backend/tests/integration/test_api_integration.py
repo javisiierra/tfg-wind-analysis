@@ -7,12 +7,15 @@ import pytest
 HAS_FASTAPI = find_spec("fastapi") is not None
 
 if HAS_FASTAPI:
+    from fastapi import HTTPException
     from fastapi.testclient import TestClient
     from app.api.v1 import pipeline
+    from app.core.config import Config
     from app.main import app
 else:
     TestClient = None
     pipeline = None
+    Config = None
     app = None
 
 
@@ -118,6 +121,106 @@ def test_controlled_errors_case_not_found_and_invalid_supports(client, monkeypat
 def test_controlled_error_invalid_parameters(client):
     response = client.post("/api/v1/domain/generate-from-supports", json={"case_path": 123, "buffer_m": "abc"})
     assert response.status_code == 422
+
+
+def test_with_domain_input_copies_frozen_config(tmp_path):
+    domain_path = tmp_path / "SHP" / "dominio.shp"
+    cfg = Config(general_path=tmp_path)
+
+    updated = pipeline._with_domain_input(cfg, domain_path)
+
+    assert cfg.in_shp is None
+    assert updated.in_shp == domain_path
+
+
+def test_prepare_dem_generates_missing_domain_then_dem(client, monkeypatch, tmp_path):
+    case_path = tmp_path / "case_prepare_new"
+    case_path.mkdir()
+    domain_path = case_path / "SHP" / "dominio.shp"
+    called = {"domain": 0, "dem": 0}
+
+    monkeypatch.setattr(pipeline, "get_existing_domain_path", lambda _: None)
+
+    def _generate(case_path_arg: str):
+        called["domain"] += 1
+        assert case_path_arg == str(case_path)
+        return {"domain_shp": str(domain_path)}
+
+    def _dem(case_path_arg: str):
+        called["dem"] += 1
+        assert case_path_arg == str(case_path)
+        return {"status": "ok", "out_mdt_tif": str(case_path / "MDT_WN" / "terrain.tif")}
+
+    monkeypatch.setattr(pipeline, "_generate_domain_from_supports_logic", _generate)
+    monkeypatch.setattr(pipeline, "_generate_dem_for_case", _dem)
+
+    response = client.post("/api/v1/domain/prepare-dem", json={"case_path": str(case_path)})
+
+    assert response.status_code == 200
+    assert response.json()["domain"]["status"] == "generated"
+    assert called == {"domain": 1, "dem": 1}
+
+
+def test_prepare_dem_reuses_existing_domain(client, monkeypatch, tmp_path):
+    case_path = tmp_path / "case_prepare_existing"
+    domain_path = case_path / "SHP" / "dominio.shp"
+    domain_path.parent.mkdir(parents=True)
+    domain_path.touch()
+
+    monkeypatch.setattr(pipeline, "get_existing_domain_path", lambda _: domain_path)
+    monkeypatch.setattr(
+        pipeline,
+        "_generate_domain_from_supports_logic",
+        lambda *_: (_ for _ in ()).throw(AssertionError("domain should be reused")),
+    )
+    monkeypatch.setattr(pipeline, "_generate_dem_for_case", lambda _: {"status": "ok"})
+
+    response = client.post("/api/v1/domain/prepare-dem", json={"case_path": str(case_path)})
+
+    assert response.status_code == 200
+    assert response.json()["domain"]["status"] == "reused"
+    assert response.json()["domain"]["path"] == str(domain_path)
+
+
+def test_prepare_dem_without_domain_or_supports_returns_controlled_error(client, monkeypatch, tmp_path):
+    case_path = tmp_path / "case_prepare_missing"
+    case_path.mkdir()
+    monkeypatch.setattr(pipeline, "get_existing_domain_path", lambda _: None)
+    monkeypatch.setattr(
+        pipeline,
+        "_generate_domain_from_supports_logic",
+        lambda *_: (_ for _ in ()).throw(HTTPException(status_code=400, detail="No existen apoyos para generar el dominio.")),
+    )
+
+    response = client.post("/api/v1/domain/prepare-dem", json={"case_path": str(case_path)})
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "No existen apoyos para generar el dominio."
+
+
+def test_prepare_dem_failure_keeps_generated_domain_and_reports_stage(client, monkeypatch, tmp_path):
+    case_path = tmp_path / "case_prepare_dem_failure"
+    case_path.mkdir()
+    domain_path = case_path / "SHP" / "dominio.shp"
+    monkeypatch.setattr(pipeline, "get_existing_domain_path", lambda _: None)
+
+    def _generate(_):
+        domain_path.parent.mkdir(parents=True)
+        domain_path.touch()
+        return {"domain_shp": str(domain_path)}
+
+    monkeypatch.setattr(pipeline, "_generate_domain_from_supports_logic", _generate)
+    monkeypatch.setattr(
+        pipeline,
+        "_generate_dem_for_case",
+        lambda _: (_ for _ in ()).throw(HTTPException(status_code=500, detail={"error": "download failed"})),
+    )
+
+    response = client.post("/api/v1/domain/prepare-dem", json={"case_path": str(case_path)})
+
+    assert response.status_code == 500
+    assert response.json()["detail"]["stage"] == "dem"
+    assert domain_path.exists()
 
 
 def test_worst_supports_geojson_enrichment_keeps_existing_metrics():

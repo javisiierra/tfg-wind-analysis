@@ -36,6 +36,44 @@ describe('Sidebar', () => {
     expect(text).not.toContain('Refrescar estado');
   });
 
+  it('should expose one domain and terrain action instead of separate domain and DEM buttons', () => {
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('Preparar dominio y terreno');
+    expect(text).not.toContain('Generar dominio desde apoyos');
+    expect(text).not.toContain('Generar DEM');
+  });
+
+  it('runPrepareDomainAndTerrain should call the composed endpoint once and select domain layer', () => {
+    const completedSpy = vi.fn();
+    const layerSpy = vi.fn();
+    component.casePath = 'C:/case';
+    component.caseStatus = { has_apoyos: true, has_domain: false } as any;
+    component.actionCompletedOk.subscribe(completedSpy);
+    component.layerSelected.subscribe(layerSpy);
+
+    component.runPrepareDomainAndTerrain();
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/domain/prepare-dem`);
+    expect(req.request.body).toEqual({ case_path: 'C:/case' });
+    req.flush({ status: 'ok', domain: { status: 'generated' }, dem: { status: 'ok' } });
+
+    httpMock.expectNone(`${environment.apiUrl}/domain/generate-from-supports`);
+    httpMock.expectNone(`${environment.apiUrl}/domain/generate-dem`);
+    expect(completedSpy).toHaveBeenCalledWith('C:/case');
+    expect(layerSpy).toHaveBeenCalledWith('dominio');
+  });
+
+  it('should allow terrain preparation when domain exists without supports', () => {
+    component.casePath = 'C:/case';
+    component.caseStatus = { has_domain: true, has_apoyos: false } as any;
+    fixture.detectChanges();
+
+    const button = Array.from(fixture.nativeElement.querySelectorAll('button'))
+      .find((item: any) => item.textContent.includes('Preparar dominio y terreno')) as HTMLButtonElement;
+
+    expect(button.disabled).toBe(false);
+  });
+
   it('should emit draw mode changes', () => {
     const spy = vi.fn();
     component.drawModeChange.subscribe(spy);

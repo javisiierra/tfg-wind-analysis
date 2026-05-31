@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import traceback
+from dataclasses import is_dataclass, replace
 from pathlib import Path
 from typing import Any
 import numpy as np
@@ -127,6 +128,13 @@ def _safe_case_name(name: str) -> str:
 
 def get_existing_domain_path(case_path: str) -> Path | None:
     return domain_generation_service.find_existing_domain_path(case_path)
+
+
+def _with_domain_input(cfg, domain_path: Path):
+    if is_dataclass(cfg):
+        return replace(cfg, in_shp=domain_path)
+    cfg.in_shp = domain_path
+    return cfg
 
 
 def get_trace_shapefile_path(case_path: str) -> Path | None:
@@ -528,16 +536,20 @@ def generate_domain_from_supports(request: DomainFromSupportsRequest):
     description="Genera el Modelo Digital de Elevaciones a partir del dominio.",
 )
 def generate_dem_from_domain(request: PipelineRequest):
-    cfg = load_cfg_from_case_or_raise(request.case_path)
-    case_path = normalize_case_path(request.case_path)
+    return _generate_dem_for_case(request.case_path)
 
-    domain_path = get_existing_domain_path(request.case_path)
+
+def _generate_dem_for_case(case_path_value: str) -> dict[str, Any]:
+    cfg = load_cfg_from_case_or_raise(case_path_value)
+    case_path = normalize_case_path(case_path_value)
+
+    domain_path = get_existing_domain_path(case_path_value)
     if domain_path is None:
         raise HTTPException(
             status_code=400,
             detail="No existe geometría de dominio para generar el DEM.",
         )
-    cfg.in_shp = domain_path
+    cfg = _with_domain_input(cfg, domain_path)
 
     # Asegurar carpetas necesarias para la ruta de salida
     for required in [case_path / "Calculos", case_path / "MDT_WN", case_path / "SHP"]:
@@ -558,7 +570,7 @@ def generate_dem_from_domain(request: PipelineRequest):
             pass
 
     debug_info = {
-        "request.case_path": request.case_path,
+        "request.case_path": case_path_value,
         "cfg.general_path": str(cfg.general_path),
         "cfg.in_shp": str(cfg.in_shp) if cfg.in_shp else None,
         "cfg.out_shp": str(cfg.out_shp) if cfg.out_shp else None,
@@ -587,7 +599,7 @@ def generate_dem_from_domain(request: PipelineRequest):
 
         return {
             "status": "ok",
-            "case_path": request.case_path,
+            "case_path": case_path_value,
             "domain_file": str(cfg.in_shp) if cfg.in_shp else None,
             "out_shp": str(cfg.out_shp) if cfg.out_shp else None,
             "out_rec_shp": str(cfg.out_rec_shp) if cfg.out_rec_shp else None,
@@ -611,6 +623,48 @@ def generate_dem_from_domain(request: PipelineRequest):
 
 
 @router.post(
+    "/domain/prepare-dem",
+    tags=["Dominio"],
+    summary="Preparar dominio y terreno",
+    description=(
+        "Reutiliza el dominio canónico si ya existe. Si falta, lo genera desde apoyos. "
+        "Después genera siempre el DEM."
+    ),
+)
+def prepare_domain_and_dem(request: PipelineRequest):
+    domain_path = get_existing_domain_path(request.case_path)
+    domain_status = "reused"
+
+    if domain_path is None:
+        domain_result = _generate_domain_from_supports_logic(request.case_path)
+        domain_path = Path(domain_result["domain_shp"])
+        domain_status = "generated"
+
+    try:
+        dem_result = _generate_dem_for_case(request.case_path)
+    except HTTPException as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={
+                "stage": "dem",
+                "message": "El dominio está preparado, pero no se pudo generar el DEM.",
+                "cause": exc.detail,
+            },
+        ) from exc
+
+    return {
+        "status": "ok",
+        "case_path": request.case_path,
+        "domain": {
+            "status": domain_status,
+            "path": str(domain_path),
+            "geojson": str(domain_generation_service.canonical_geojson_path(request.case_path)),
+        },
+        "dem": dem_result,
+    }
+
+
+@router.post(
     "/domain/generate-weather",
     tags=["Dominio"],
     summary="Generar meteorología",
@@ -627,7 +681,7 @@ def generate_weather_from_domain(request: PipelineRequest):
             status_code=400,
             detail="No existe geometría de dominio para generar meteorología.",
         )
-    cfg.in_shp = domain_path
+    cfg = _with_domain_input(cfg, domain_path)
 
     try:
         weather_result = _generate_weather_for_cfg(cfg)
@@ -692,7 +746,7 @@ def run_preparation(request: PipelineRequest):
             status_code=400,
             detail="No se encontró el dominio después de la generación.",
         )
-    cfg.in_shp = domain_path
+    cfg = _with_domain_input(cfg, domain_path)
 
     dem_result = run_geometry_and_dem(cfg)
     weather_result = _generate_weather_for_cfg(cfg)
@@ -829,7 +883,7 @@ def run_windninja_api(request: PipelineRequest):
             status_code=400,
             detail="No existe dominio canónico SHP/dominio.shp o SHP/dominio.geojson para ejecutar WindNinja.",
         )
-    cfg.in_shp = domain_path
+    cfg = _with_domain_input(cfg, domain_path)
 
     if cfg.in_weather_file is None:
         raise HTTPException(
