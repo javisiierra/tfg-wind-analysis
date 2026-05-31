@@ -358,6 +358,74 @@ def test_run_windninja_wind_rose_failure_warns(client, monkeypatch, tmp_path):
     assert "rose boom" in body["wind_rose_warning"]
 
 
+def test_run_rename_for_cfg_calls_rename_service_directly(monkeypatch, tmp_path):
+    from app.services.wind import rename_files_service
+
+    cfg = SimpleNamespace(
+        general_path=tmp_path / "Caso Demo-01",
+        out_weather_point_file=tmp_path / "Weather_Input_Data" / "WN_input_Point_1.csv",
+        out_wn=tmp_path / "OUT_WN",
+        out_wn_ren=tmp_path / "OUT_WN_REN",
+    )
+    called = {}
+
+    def _run_rename(**kwargs):
+        called.update(kwargs)
+        return None, {}, None
+
+    monkeypatch.setattr(rename_files_service, "run_rename", _run_rename)
+
+    result = pipeline._run_rename_for_cfg(cfg)
+
+    assert result == {
+        "status": "ok",
+        "apply": True,
+        "summary": str(Path("out") / "rename" / "rename_summary.txt"),
+        "plan": str(Path("out") / "rename" / "rename_plan.csv"),
+        "diagnostics": str(Path("out") / "rename" / "rename_diagnostics.csv"),
+    }
+    assert called == {
+        "cases_csv": cfg.out_weather_point_file,
+        "out_dir": cfg.out_wn,
+        "dest_dir": cfg.out_wn_ren,
+        "diag_csv": Path("out") / "rename" / "rename_diagnostics.csv",
+        "summary_txt": Path("out") / "rename" / "rename_summary.txt",
+        "plan_csv": Path("out") / "rename" / "rename_plan.csv",
+        "prefix": "MDT_WN_Caso_Demo_01_point",
+        "recursive": False,
+        "apply": True,
+    }
+
+
+def test_run_wind_rose_for_cfg_calls_runner_service_directly(monkeypatch):
+    from app.services.wind import wind_rose_runner_service
+
+    cfg = SimpleNamespace()
+    called = {}
+
+    def _run_wind_rose_for_cfg(arg):
+        called["cfg"] = arg
+        return {
+            "out_csv_path": Path("out") / "wind_rose" / "wind_source_data.csv",
+            "out_plot_path": Path("out") / "wind_rose" / "wind_rose.png",
+            "out_weibull_path": Path("out") / "wind_rose" / "weibull_fit.png",
+            "cfg_csv_path": Path("case") / "WR" / "wind.csv",
+        }
+
+    monkeypatch.setattr(wind_rose_runner_service, "run_wind_rose_for_cfg", _run_wind_rose_for_cfg)
+
+    result = pipeline._run_wind_rose_for_cfg(cfg)
+
+    assert called["cfg"] is cfg
+    assert result == {
+        "status": "ok",
+        "csv": str(Path("out") / "wind_rose" / "wind_source_data.csv"),
+        "plot": str(Path("out") / "wind_rose" / "wind_rose.png"),
+        "weibull": str(Path("out") / "wind_rose" / "weibull_fit.png"),
+        "cfg_csv": str(Path("case") / "WR" / "wind.csv"),
+    }
+
+
 def test_manual_run_rename_endpoint_still_uses_common_logic(client, monkeypatch, tmp_path):
     cfg = SimpleNamespace()
     monkeypatch.setattr(pipeline, "load_cfg_from_case_or_raise", lambda _: cfg)

@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import traceback
 from pathlib import Path
 from typing import Any
@@ -113,6 +114,10 @@ def get_existing_path(*paths: Path) -> Path | None:
         if path and path.exists():
             return path
     return None
+
+
+def _safe_case_name(name: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_]+", "_", name).strip("_")
 
 
 def get_existing_domain_path(case_path: str) -> Path | None:
@@ -858,16 +863,34 @@ def run_base_pipeline(request: PipelineRequest):
 
 
 def _run_rename_for_cfg(cfg) -> dict[str, Any]:
-    from app.scripts.run_local_pipeline import run_rename_stage
+    from app.services.wind import rename_files_service
 
-    result = run_rename_stage(cfg, apply=True)
+    report_dir = Path("out") / "rename"
+    report_dir.mkdir(parents=True, exist_ok=True)
+
+    diag_csv = report_dir / "rename_diagnostics.csv"
+    summary_txt = report_dir / "rename_summary.txt"
+    plan_csv = report_dir / "rename_plan.csv"
+    prefix = f"MDT_WN_{_safe_case_name(Path(cfg.general_path).name)}_point"
+
+    rename_files_service.run_rename(
+        cases_csv=Path(cfg.out_weather_point_file),
+        out_dir=Path(cfg.out_wn),
+        dest_dir=Path(cfg.out_wn_ren),
+        diag_csv=diag_csv,
+        summary_txt=summary_txt,
+        plan_csv=plan_csv,
+        prefix=prefix,
+        recursive=False,
+        apply=True,
+    )
 
     return {
         "status": "ok",
-        "apply": result.get("apply"),
-        "summary": str(result.get("summary_txt_path")),
-        "plan": str(result.get("plan_csv_path")),
-        "diagnostics": str(result.get("diag_csv_path")),
+        "apply": True,
+        "summary": str(summary_txt),
+        "plan": str(plan_csv),
+        "diagnostics": str(diag_csv),
     }
 
 
@@ -878,9 +901,9 @@ def _run_worst_supports_for_cfg(cfg, top_n: int = 4) -> dict[str, Any]:
 
 
 def _run_wind_rose_for_cfg(cfg) -> dict[str, Any]:
-    from app.scripts.run_local_pipeline import run_wind_rose_stage
+    from app.services.wind.wind_rose_runner_service import run_wind_rose_for_cfg
 
-    result = run_wind_rose_stage(cfg)
+    result = run_wind_rose_for_cfg(cfg)
 
     return {
         "status": "ok",
