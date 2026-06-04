@@ -7,40 +7,14 @@ import { Chart, ChartConfiguration, ChartOptions, registerables } from 'chart.js
 
 import { DashboardAsyncStatusResponse, DashboardService, MeteoRequestPayload } from '../../services/dashboard.service';
 import { MapContextService } from '../../services/map-context.service';
+import {
+  DashboardJobStatus,
+  MeteoSummaryDTO,
+  WindRoseDTO,
+  WindTimeseriesDTO
+} from '../../models/api-contracts';
 
 Chart.register(...registerables);
-
-interface MeteoSummary {
-  year: number;
-  avg_velocity: number;
-  max_velocity: number;
-  dominant_direction: number;
-  windiest_month: number;
-  viability_index: number;
-  data_points: number;
-}
-
-interface WindTimeseries {
-  month: number;
-  avg_velocity: number;
-  max_velocity: number;
-  min_velocity: number;
-  frequency: Record<string, number>;
-}
-
-interface WindRoseData {
-  direction: string;
-  frequency?: number | Record<string, unknown>;
-  percentage?: number;
-  value?: number;
-  freq?: number;
-  mean_speed?: number;
-  avg_velocity?: number;
-  sample_count?: number;
-  samples?: number;
-  count?: number;
-  velocity_range?: { min?: number; max?: number };
-}
 
 interface WindRoseSector {
   direction: string;
@@ -48,21 +22,11 @@ interface WindRoseSector {
   meanSpeed: number | null;
   samples: number | null;
   velocity_range?: { min?: number; max?: number };
-  raw: WindRoseData | null;
+  raw: WindRoseDTO | null;
   angle: number;
   path: string;
   color: string;
 }
-
-type DashboardJobStatus =
-  | 'queued'
-  | 'running'
-  | 'finished'
-  | 'successful'
-  | 'completed'
-  | 'success'
-  | 'failed'
-  | 'error';
 
 @Component({
   selector: 'app-dashboard',
@@ -93,9 +57,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private pollingSubscription: Subscription | null = null;
   private monthlyChart: Chart | null = null;
 
-  meteoSummary: MeteoSummary | null = null;
-  windTimeseries: WindTimeseries[] = [];
-  windRoseData: WindRoseData[] = [];
+  meteoSummary: MeteoSummaryDTO | null = null;
+  windTimeseries: WindTimeseriesDTO[] = [];
+  windRoseData: WindRoseDTO[] = [];
   windRoseSectors: WindRoseSector[] = [];
   selectedWindSector: WindRoseSector | null = null;
 
@@ -403,31 +367,17 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.pollingSubscription = null;
   }
 
-  private normalizeStatus(status: string): DashboardJobStatus {
-    const normalized = String(status ?? '').toLowerCase();
-
-    if (normalized === 'successful') return 'successful';
-    if (normalized === 'completed') return 'completed';
-    if (normalized === 'success') return 'success';
-    if (normalized === 'finished') return 'finished';
-    if (normalized === 'failed') return 'failed';
-    if (normalized === 'error') return 'error';
-    if (normalized === 'running') return 'running';
-
-    return 'queued';
-  }
-
   private isFinishedStatus(status: DashboardJobStatus): boolean {
-    return ['finished', 'successful', 'completed', 'success'].includes(status);
+    return status === 'finished';
   }
 
   private isFailedStatus(status: DashboardJobStatus): boolean {
-    return ['failed', 'error'].includes(status);
+    return status === 'failed';
   }
 
   private handleJobStatus(response: DashboardAsyncStatusResponse): void {
     this.zone.run(() => {
-      const status = this.normalizeStatus(response.status);
+      const status = response.status;
 
       this.jobStatus = status;
       this.progress = Math.max(0, Math.min(100, Number(response.progress ?? 0)));
@@ -590,10 +540,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return this.selectedWindSector?.direction === sector.direction;
   }
 
-  private buildWindRoseSectors(rawData: WindRoseData[]): WindRoseSector[] {
+  private buildWindRoseSectors(rawData: WindRoseDTO[]): WindRoseSector[] {
     console.debug('[Dashboard][WindRose] raw response', rawData);
 
-    const dataByDirection = new Map<string, WindRoseData>();
+    const dataByDirection = new Map<string, WindRoseDTO>();
 
     rawData.forEach((item) => {
       const direction = this.normalizeDirectionName(item?.direction);
@@ -604,9 +554,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     return this.windRoseDirections.map((direction, index) => {
       const item = dataByDirection.get(direction);
-      const percentage = this.extractWindRosePercentage(item);
-      const meanSpeed = this.extractNumericValue(item, ['mean_speed', 'meanSpeed', 'avg_velocity', 'average_speed']);
-      const samples = this.extractNumericValue(item, ['samples', 'sample_count', 'count', 'n']);
+      const percentage = item ? this.normalizePercentageScale(item.frequency) : null;
+      const meanSpeed = item?.mean_speed ?? null;
+      const samples = item?.sample_count ?? null;
       const angle = index * this.windRoseSectorDegrees;
       const radius = this.radiusForPercentage(percentage ?? 0);
 
@@ -663,56 +613,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private normalizeDirectionName(direction: unknown): string | null {
     const value = String(direction ?? '').trim().toUpperCase();
     return this.windRoseDirections.includes(value) ? value : null;
-  }
-
-  private extractWindRosePercentage(payload: unknown): number | null {
-    if (typeof payload === 'number') {
-      return Number.isFinite(payload) ? this.normalizePercentageScale(payload) : null;
-    }
-
-    if (!payload || typeof payload !== 'object') {
-      return null;
-    }
-
-    const value = this.extractNumericValue(payload, ['percentage', 'frequency', 'value', 'freq', 'y', 'r']);
-
-    return value === null ? null : this.normalizePercentageScale(value);
-  }
-
-  private extractNumericValue(payload: unknown, keys: string[]): number | null {
-    if (typeof payload === 'number') {
-      return Number.isFinite(payload) ? payload : null;
-    }
-
-    if (!payload || typeof payload !== 'object') {
-      return null;
-    }
-
-    const record = payload as Record<string, unknown>;
-
-    for (const key of keys) {
-      const candidate = record[key];
-
-      if (typeof candidate === 'number' && Number.isFinite(candidate)) {
-        return candidate;
-      }
-
-      if (typeof candidate === 'string' && candidate.trim() !== '') {
-        const parsed = Number(candidate);
-        if (Number.isFinite(parsed)) {
-          return parsed;
-        }
-      }
-
-      if (candidate && typeof candidate === 'object') {
-        const nestedValue = this.extractNumericValue(candidate, keys);
-        if (nestedValue !== null) {
-          return nestedValue;
-        }
-      }
-    }
-
-    return null;
   }
 
   private normalizePercentageScale(value: number): number {

@@ -29,6 +29,7 @@ import CircleStyle from 'ol/style/Circle';
 import Feature from 'ol/Feature';
 import Geometry from 'ol/geom/Geometry';
 import { environment } from '../../../environments/environment';
+import { normalizeLayerGeoJson } from '../../services/layer-contract.service';
 
 @Component({
   selector: 'app-map',
@@ -318,7 +319,7 @@ export class MapComponent implements AfterViewInit, OnChanges {
         throw new Error(`HTTP ${res.status}`);
       }
 
-      return res.json();
+      return res.json().then(data => normalizeLayerGeoJson(layerName, data));
     });
   }
 
@@ -345,7 +346,7 @@ export class MapComponent implements AfterViewInit, OnChanges {
           throw new Error(`HTTP ${res.status}`);
         }
 
-        return res.json();
+        return res.json().then(data => normalizeLayerGeoJson(layerName, data));
       })
       .then(data => {
         const format = new GeoJSONFormat();
@@ -414,22 +415,12 @@ export class MapComponent implements AfterViewInit, OnChanges {
     const props = feature.getProperties();
 
     const order =
-      props['sup_order'] ??
-      props['SUP_ORDER'] ??
       props['support_order'] ??
-      props['SUPPORT_ORDER'] ??
-      props['support_or'] ??
-      props['SUPPORT_OR'] ??
       props['generated_id'] ??
       index + 1;
 
     const total =
-      props['sup_total'] ??
-      props['SUP_TOTAL'] ??
       props['support_total'] ??
-      props['SUPPORT_TOTAL'] ??
-      props['support_to'] ??
-      props['SUPPORT_TO'] ??
       pointFeatures.length;
 
     feature.set('support_order', Number(order));
@@ -532,8 +523,8 @@ export class MapComponent implements AfterViewInit, OnChanges {
     const props = feature.getProperties();
     const keys = [
       this.getFeatureIdentifier(feature),
-      this.pickProperty(props, ['global_support_id', 'generated_id', 'id', 'ID', 'MAT']),
-      this.pickProperty(props, ['support_order', 'SUPPORT_ORDER', 'sup_order', 'SUP_ORDER'])
+      this.pickProperty(props, ['global_support_id', 'id']),
+      this.pickProperty(props, ['support_order'])
     ];
 
     return [...new Set(keys
@@ -544,11 +535,11 @@ export class MapComponent implements AfterViewInit, OnChanges {
   private getWorstSupportMatchKeys(feature: Feature<Geometry>): string[] {
     const props = feature.getProperties();
     const keys = [
-      this.pickProperty(props, ['from_support', 'from_support_id', 'from_ap']),
-      this.pickProperty(props, ['to_support', 'to_support_id', 'to_ap']),
-      this.pickProperty(props, ['from_order', 'from_idx']),
-      this.pickProperty(props, ['to_order', 'to_idx']),
-      this.pickProperty(props, ['global_support_id', 'generated_id', 'id', 'ID', 'MAT'])
+      this.pickProperty(props, ['from_support']),
+      this.pickProperty(props, ['to_support']),
+      this.pickProperty(props, ['from_order']),
+      this.pickProperty(props, ['to_order']),
+      this.pickProperty(props, ['global_support_id', 'id'])
     ];
 
     return [...new Set(keys
@@ -569,11 +560,8 @@ export class MapComponent implements AfterViewInit, OnChanges {
     }
 
     [
-      'w_speed',
       'wind_speed',
-      'vperp_min',
       'critical_metric',
-      'alpha',
       'angle_relative',
       'critical_reason',
       'from_support',
@@ -591,20 +579,20 @@ export class MapComponent implements AfterViewInit, OnChanges {
   }
 
   private extractCriticalMetric(props: Record<string, any>): number | undefined {
-    const value = this.pickProperty(props, ['critical_metric', 'vperp_min', 'v_perp', 'componente_perpendicular']);
+    const value = props['critical_metric'];
     const numericValue = Number(value);
 
     return Number.isFinite(numericValue) ? numericValue : undefined;
   }
 
   private getCriticalSpanLabel(props: Record<string, any>): string | undefined {
-    const explicitLabel = this.pickProperty(props, ['associated_span_label', 'span_label', 'span_labe']);
+    const explicitLabel = this.pickProperty(props, ['associated_span_label', 'span_label']);
     if (explicitLabel !== undefined) {
       return String(explicitLabel).replace(' -> ', ' &rarr; ');
     }
 
-    const fromSupport = this.pickProperty(props, ['from_support', 'from_support_id', 'from_ap']);
-    const toSupport = this.pickProperty(props, ['to_support', 'to_support_id', 'to_ap']);
+    const fromSupport = props['from_support'];
+    const toSupport = props['to_support'];
 
     if (fromSupport !== undefined && toSupport !== undefined) {
       return `${fromSupport} &rarr; ${toSupport}`;
@@ -615,7 +603,7 @@ export class MapComponent implements AfterViewInit, OnChanges {
       return String(mat);
     }
 
-    const fallbackId = this.pickProperty(props, ['global_support_id', 'generated_id', 'id', 'ID']);
+    const fallbackId = this.pickProperty(props, ['global_support_id', 'id']);
     return fallbackId !== undefined ? String(fallbackId) : undefined;
   }
   private copyWorstMetric(from: Feature<Geometry>, to: Feature<Geometry>, key: string): void {
@@ -811,14 +799,7 @@ export class MapComponent implements AfterViewInit, OnChanges {
 
     if (tooltipLayer === 'worst') {
       const props = feature.getProperties();
-      const direction = this.pickProperty(props, [
-        'direction',
-        'direccion',
-        'wind_direction',
-        'w_dir',
-        'wind_dir',
-        'direccion_viento'
-      ]);
+      const direction = props['direction_deg'] ?? props['wind_direction'];
 
       return `
         <strong>Vano cr&iacute;tico</strong><br>
@@ -854,9 +835,9 @@ export class MapComponent implements AfterViewInit, OnChanges {
   }
 
   private buildWindMetricsHtml(props: Record<string, any>): string {
-    const windSpeed = this.pickProperty(props, ['wind_speed', 'w_speed']);
-    const vperpMin = this.pickProperty(props, ['critical_metric', 'vperp_min', 'v_perp']);
-    const relativeAngle = this.pickProperty(props, ['angle_relative', 'alpha', 'alpha_eff']);
+    const windSpeed = props['wind_speed'];
+    const vperpMin = props['critical_metric'];
+    const relativeAngle = props['angle_relative'];
     const reason = this.pickProperty(props, ['critical_reason']);
 
     return `
@@ -894,25 +875,7 @@ export class MapComponent implements AfterViewInit, OnChanges {
   return (
     props['global_support_id'] ??
     props['id'] ??
-    props['ID'] ??
-    props['apoyo'] ??
-    props['APOYO'] ??
-    props['numero'] ??
-    props['NUMERO'] ??
-    props['n_apoyo'] ??
-    props['N_APOYO'] ??
-    props['cod_apoyo'] ??
-    props['COD_APOYO'] ??
-    props['support_id'] ??
-    props['SUPPORT_ID'] ??
     props['support_order'] ??
-    props['SUPPORT_ORDER'] ??
-    props['sup_order'] ??
-    props['SUP_ORDER'] ??
-    props['global_id'] ??
-    props['GLOBAL_ID'] ??
-    props['name'] ??
-    props['Name'] ??
     props['generated_id'] ??
     null
   );

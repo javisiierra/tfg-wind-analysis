@@ -98,11 +98,16 @@ def _ordered_supports(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     return sortable.sort_values("_sort_x", kind="stable").drop(columns=["_sort_x"]).reset_index(drop=True)
 
 
-def generate_vanos_from_supports(case_path: str | Path, cfg: Any | None = None) -> dict[str, Any]:
+def generate_vanos_from_supports(
+    case_path: str | Path,
+    cfg: Any | None = None,
+    *,
+    force: bool = False,
+) -> dict[str, Any]:
     case_root = normalize_case_path(case_path)
     existing_vanos = find_existing_vanos_path(case_root, cfg)
 
-    if existing_vanos is not None:
+    if existing_vanos is not None and not force:
         return {
             "status": "ok",
             "message": "La capa de vanos ya existe",
@@ -146,12 +151,12 @@ def generate_vanos_from_supports(case_path: str | Path, cfg: Any | None = None) 
         records.append(
             {
                 "id": f"V-{index + 1}",
-                "vano_id": f"V-{index + 1}",
                 "from_support": _support_identifier(from_row, from_order),
                 "to_support": _support_identifier(to_row, to_order),
                 "from_order": from_order,
                 "to_order": to_order,
-                "direccion": float(direction),
+                # SHP limits field names to 10 chars; the layer adapter exposes direction_deg.
+                "direction": float(direction),
                 "geometry": LineString([p1, p2]),
             }
         )

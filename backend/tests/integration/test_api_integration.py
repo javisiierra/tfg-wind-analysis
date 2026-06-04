@@ -248,9 +248,9 @@ def test_worst_supports_geojson_enrichment_keeps_existing_metrics():
     enriched = pipeline._enrich_worst_supports_geojson(geojson)
     props = enriched["features"][0]["properties"]
 
-    assert props["vperp_min"] == 1.25
-    assert props["w_speed"] == 8.5
-    assert props["alpha"] == 12.75
+    assert "vperp_min" not in props
+    assert "w_speed" not in props
+    assert "alpha" not in props
     assert props["critical_metric"] == 1.25
     assert props["critical_metric_unit"] == "m/s"
     assert props["critical_reason"] == "Menor componente perpendicular sobre el vano entre escenarios WindNinja"
@@ -262,6 +262,38 @@ def test_worst_supports_geojson_enrichment_keeps_existing_metrics():
     assert props["from_support"] == "AP-5"
     assert props["to_support"] == "AP-6"
     assert props["span_label"] == "AP-5 -> AP-6"
+
+
+def test_layer_geojson_normalization_exposes_canonical_support_and_span_fields():
+    from app.api.v1.layer_response import normalize_layer_geojson
+
+    supports = normalize_layer_geojson(
+        {
+            "type": "FeatureCollection",
+            "features": [{"type": "Feature", "properties": {"id": "7", "sup_order": 7, "sup_total": 9}}],
+        },
+        "apoyos",
+    )
+    spans = normalize_layer_geojson(
+        {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {"id": "V-1", "from_ap": "AP-7", "to_ap": "AP-8", "direccion": 45},
+                }
+            ],
+        },
+        "vanos",
+    )
+
+    assert supports["features"][0]["properties"] == {"id": "AP-7", "support_order": 7, "support_total": 9}
+    assert spans["features"][0]["properties"] == {
+        "id": "V-1",
+        "from_support": "AP-7",
+        "to_support": "AP-8",
+        "direction_deg": 45.0,
+    }
 
 
 def test_run_preparation_does_not_use_legacy_pipeline_or_towers(client, monkeypatch, tmp_path):

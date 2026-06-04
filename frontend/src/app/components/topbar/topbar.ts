@@ -5,17 +5,7 @@ import { CommonModule } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { ExecutionUiState } from '../../models/execution-ui-state';
-
-interface CaseStatusResponse {
-  status?: string;
-  case_path: string;
-  has_domain: boolean;
-  has_weather: boolean;
-  has_dem: boolean;
-  has_apoyos: boolean;
-  has_vanos: boolean;
-  ready_for_windninja: boolean;
-}
+import { CaseStatusResponse } from '../../services/dashboard.service';
 
 type PipelineStepResponse = Record<string, unknown> & {
   status?: string;

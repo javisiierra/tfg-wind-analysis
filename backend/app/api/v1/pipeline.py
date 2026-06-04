@@ -5,12 +5,10 @@ import traceback
 from dataclasses import is_dataclass, replace
 from pathlib import Path
 from typing import Any
-import numpy as np
-
 import geopandas as gpd
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from shapely.geometry import LineString, shape
+from shapely.geometry import shape
 
 from app.core.config import load_config_from_case
 from app.core.paths import normalize_case_path
@@ -24,6 +22,7 @@ from app.services.domain.generation_service import (
     DomainGenerationError,
     DomainGenerationService,
 )
+from app.api.v1.contracts import PipelineStatusDTO
 from app.services.vanos.vanos_from_supports_service import (
     VanosGenerationError,
     canonical_vanos_geojson_path,
@@ -264,6 +263,7 @@ def health():
 
 @router.post(
     "/supports/generate-vanos",
+    response_model=PipelineStatusDTO,
     tags=["Apoyos"],
     summary="Generar vanos desde apoyos",
     description="Genera automáticamente los vanos (líneas entre apoyos consecutivos).",
@@ -295,6 +295,7 @@ def generate_vanos_from_supports(request: PipelineRequest):
 
 @router.post(
     "/vanos/generate-from-supports",
+    response_model=PipelineStatusDTO,
     tags=["Vanos"],
     summary="Generar vanos desde apoyos",
     description="Genera la capa de vanos en SHP/vanos.shp y SHP/vanos.geojson si todavía no existe.",
@@ -304,6 +305,7 @@ def generate_vanos_from_supports_endpoint(request: PipelineRequest):
 
 @router.post(
     "/supports/create",
+    response_model=PipelineStatusDTO,
     tags=["Apoyos"],
     summary="Crear apoyo",
     description="Añade un nuevo apoyo manual dibujado desde el mapa al caso.",
@@ -410,51 +412,8 @@ def create_support(request: SupportCreateRequest):
 
         # Mantener actualizada la capa de vanos que consume /layers/vanos.
         vanos_path = case_path / "SHP" / "vanos.shp"
-        vanos_geojson_path = case_path / "SHP" / "vanos.geojson"
-        vanos_path.parent.mkdir(parents=True, exist_ok=True)
-
-        points = [
-            geom
-            for geom in gdf.geometry
-            if geom is not None and geom.geom_type == "Point"
-        ]
-
-        if len(points) >= 2:
-            records = []
-
-            for i in range(len(points) - 1):
-                p1 = points[i]
-                p2 = points[i + 1]
-
-                dx = p2.x - p1.x
-                dy = p2.y - p1.y
-                direccion = (np.degrees(np.arctan2(dx, dy)) + 360.0) % 360.0
-
-                records.append({
-                    "id": f"V-{i + 1}",
-                    "from_ap": f"AP-{i + 1}",
-                    "to_ap": f"AP-{i + 2}",
-                    "direccion": float(direccion),
-                    "geometry": LineString([p1, p2]),
-                })
-
-            vanos_gdf = gpd.GeoDataFrame(
-                records,
-                geometry="geometry",
-                crs="EPSG:25830",
-            )
-
-            for ext in [".shp", ".shx", ".dbf", ".prj", ".cpg"]:
-                p = vanos_path.with_suffix(ext)
-                if p.exists():
-                    p.unlink()
-
-            vanos_gdf.to_file(
-                vanos_path,
-                driver="ESRI Shapefile",
-                encoding="UTF-8",
-            )
-            vanos_gdf.to_file(vanos_geojson_path, driver="GeoJSON")
+        if support_total >= 2:
+            generate_vanos_from_supports_service(case_path, force=True)
 
         print("Guardado apoyo:", support_id)
         print("Total apoyos:", support_total)
@@ -493,6 +452,7 @@ def create_support(request: SupportCreateRequest):
 
 @router.post(
     "/domain/generate-from-supports",
+    response_model=PipelineStatusDTO,
     tags=["Dominio"],
     summary="Generar dominio desde apoyos",
     description=(
@@ -624,6 +584,7 @@ def _generate_dem_for_case(case_path_value: str) -> dict[str, Any]:
 
 @router.post(
     "/domain/prepare-dem",
+    response_model=PipelineStatusDTO,
     tags=["Dominio"],
     summary="Preparar dominio y terreno",
     description=(
@@ -666,6 +627,7 @@ def prepare_domain_and_dem(request: PipelineRequest):
 
 @router.post(
     "/domain/generate-weather",
+    response_model=PipelineStatusDTO,
     tags=["Dominio"],
     summary="Generar meteorología",
     description="Genera los ficheros de entrada de viento para WindNinja.",
@@ -707,6 +669,7 @@ def generate_weather_from_domain(request: PipelineRequest):
 
 @router.post(
     "/pipeline/run-preparation",
+    response_model=PipelineStatusDTO,
     tags=["Pipeline"],
     summary="Ejecutar preparación moderna",
     description=(
@@ -870,6 +833,7 @@ def _run_wind_rose_for_cfg(cfg) -> dict[str, Any]:
 
 @router.post(
     "/pipeline/run-windninja",
+    response_model=PipelineStatusDTO,
     tags=["Pipeline"],
     summary="Ejecutar WindNinja",
     description="Lanza la simulación de WindNinja con los datos preparados.",
@@ -1058,6 +1022,7 @@ def import_folder_api(request: FolderImportRequest):
 
 @router.post(
     "/case/status",
+    response_model=PipelineStatusDTO,
     tags=["Estado"],
     summary="Estado del caso",
     description="Devuelve el estado del caso: dominio, DEM, apoyos, vanos y meteorología.",

@@ -2,7 +2,7 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { DrawMode } from '../../app';
+import { DrawMode } from '../../services/map-context.service';
 import { CaseStatusResponse } from '../../services/dashboard.service';
 import { ExecutionUiState } from '../../models/execution-ui-state';
 import { environment } from '../../../environments/environment';
