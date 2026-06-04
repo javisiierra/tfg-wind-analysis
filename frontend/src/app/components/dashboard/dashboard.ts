@@ -188,8 +188,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   selectWindSector(sector: WindRoseSector): void {
-    console.log('[WindRose] clicked sector object:', sector);
-    console.log('[WindRose] selected direction:', sector.direction);
     this.selectedWindSector = sector;
   }
 
@@ -258,8 +256,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     this.dashboardService.getCaseStatus(selectedPath).subscribe({
       next: (status) => {
-        console.log('CASE STATUS RESPONSE:', status);
-
         if (!this.dataMapper.hasDomain(status)) {
           this.error = 'El caso seleccionado no tiene dominio. Puedes generarlo automÃ¡ticamente desde apoyos.';
           this.canGenerateDomain = true;

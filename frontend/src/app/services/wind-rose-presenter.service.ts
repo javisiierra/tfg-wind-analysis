@@ -32,8 +32,6 @@ export class WindRosePresenterService {
   ];
 
   buildWindRoseSectors(rawData: WindRoseDTO[]): WindRoseSector[] {
-    console.debug('[Dashboard][WindRose] raw response', rawData);
-
     const dataByDirection = new Map<string, WindRoseDTO>();
 
     rawData.forEach((item) => {

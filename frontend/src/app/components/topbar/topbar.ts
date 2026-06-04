@@ -119,12 +119,11 @@ export class Topbar {
     this.error = null;
 
     try {
-      const preparationResult = await this.runStep(
+      await this.runStep(
         'Preparando dominio, DEM y meteorologia',
         45,
         () => firstValueFrom(this.dashboardService.runPreparation(this.casePath))
       );
-      console.info('[Ejecutar preparacion] Preparacion backend completada:', preparationResult);
 
       const windninjaResult = await this.runStep(
         'Ejecutando WindNinja y postprocesado',
@@ -160,7 +159,6 @@ export class Topbar {
     action: () => Promise<PipelineStepResponse>
   ): Promise<PipelineStepResponse> {
     this.emitRunningState(stage, progress);
-    console.info(`[Ejecutar preparacion] Inicio: ${stage}`);
     const response = await action();
 
     if (!this.hasOkStatus(response)) {
@@ -173,7 +171,6 @@ export class Topbar {
       };
     }
 
-    console.info(`[Ejecutar preparacion] Fin: ${stage}`, response);
     return response;
   }
 
