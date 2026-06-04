@@ -6,6 +6,7 @@ import pytest
 
 HAS_FASTAPI = find_spec("fastapi") is not None
 HAS_GIS = find_spec("geopandas") is not None and find_spec("shapely") is not None
+HAS_RASTER = find_spec("rasterio") is not None and find_spec("pyproj") is not None
 
 if HAS_FASTAPI:
     from fastapi import HTTPException
@@ -299,6 +300,125 @@ def test_layer_geojson_normalization_exposes_canonical_support_and_span_fields()
         "to_support": "AP-8",
         "direction_deg": 45.0,
     }
+
+
+def _write_ascii_grid(path: Path, rows: list[list[float]]) -> None:
+    path.write_text(
+        "\n".join(
+            [
+                "ncols 4",
+                "nrows 4",
+                "xllcorner 499950",
+                "yllcorner 4799950",
+                "cellsize 100",
+                "NODATA_value -9999",
+                *[" ".join(str(value) for value in row) for row in rows],
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+@pytest.mark.skipif(not (HAS_GIS and HAS_RASTER), reason="dependencias GIS/raster no disponibles")
+def test_worst_supports_uses_real_vanos_and_synthetic_windninja_rasters(client, tmp_path):
+    from pyproj import CRS
+
+    from app.core.config import Config
+    from app.services.analysis.worst_supports_service import compute_worst_supports
+    from app.services.vanos.vanos_from_supports_service import generate_vanos_from_supports
+
+    case_path = tmp_path / "case_worst_raster"
+    supports_path = case_path / "Apoyos" / "apoyos.shp"
+    supports_path.parent.mkdir(parents=True)
+    gpd.GeoDataFrame(
+        {
+            "id": ["AP-1", "AP-2", "AP-3"],
+            "support_order": [1, 2, 3],
+        },
+        geometry=[
+            Point(500000, 4800000),
+            Point(500200, 4800000),
+            Point(500200, 4800200),
+        ],
+        crs="EPSG:25830",
+    ).to_file(supports_path, driver="ESRI Shapefile", encoding="UTF-8")
+
+    cfg = Config.from_case_path(case_path)
+    vanos_result = generate_vanos_from_supports(case_path, cfg)
+    out_wn_ren = case_path / "OUT_WN_REN"
+    out_wn_ren.mkdir(parents=True)
+
+    _write_ascii_grid(
+        out_wn_ren / "synthetic_speed.asc",
+        [
+            [1, 1, 1, 1],
+            [1, 1, 1, 1],
+            [1, 1, 8, 1],
+            [1, 10, 1, 1],
+        ],
+    )
+    _write_ascii_grid(
+        out_wn_ren / "synthetic_ang.asc",
+        [
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 90, 0],
+            [0, 90, 0, 0],
+        ],
+    )
+    (out_wn_ren / "synthetic_speed.prj").write_text(
+        CRS.from_epsg(25830).to_wkt(),
+        encoding="utf-8",
+    )
+
+    result = compute_worst_supports(cfg, top_n=2)
+
+    assert vanos_result["created"] is True
+    assert result["top_n"] == 2
+    assert Path(result["csv"]).exists()
+    assert Path(result["shp"]) == case_path / "Calculos" / f"{case_path.name}_v_perp_min.shp"
+    assert Path(result["shp"]).exists()
+    assert len(result["worst"]) == 2
+
+    first, second = result["worst"]
+    assert first["span_label"] == "AP-1 -> AP-2"
+    assert first["from_ap"] == "AP-1"
+    assert first["to_ap"] == "AP-2"
+    assert first["direccion"] == pytest.approx(90.0)
+    assert first["wind_speed"] == pytest.approx(10.0)
+    assert first["wind_dir"] == pytest.approx(90.0)
+    assert first["alpha_eff"] == pytest.approx(0.0)
+    assert first["v_perp"] == pytest.approx(0.0)
+
+    assert second["span_label"] == "AP-2 -> AP-3"
+    assert second["from_ap"] == "AP-2"
+    assert second["to_ap"] == "AP-3"
+    assert second["direccion"] == pytest.approx(0.0)
+    assert second["wind_speed"] == pytest.approx(8.0)
+    assert second["wind_dir"] == pytest.approx(90.0)
+    assert second["alpha_eff"] == pytest.approx(90.0)
+    assert second["v_perp"] == pytest.approx(8.0)
+
+    out_gdf = gpd.read_file(result["shp"])
+    assert len(out_gdf) == 2
+    assert "vperp_min" in out_gdf.columns
+    assert sorted(out_gdf["vperp_min"].round(6).tolist()) == [0.0, 8.0]
+
+    layer_response = client.post(
+        "/api/v1/layers/worst-supports",
+        json={"case_path": str(case_path)},
+    )
+
+    assert layer_response.status_code == 200
+    features = layer_response.json()["features"]
+    assert len(features) == 2
+    props_by_span = {feature["properties"]["span_label"]: feature["properties"] for feature in features}
+    assert props_by_span["AP-1 -> AP-2"]["critical_metric"] == pytest.approx(0.0)
+    assert props_by_span["AP-1 -> AP-2"]["wind_speed"] == pytest.approx(10.0)
+    assert props_by_span["AP-1 -> AP-2"]["angle_relative"] == pytest.approx(0.0)
+    assert props_by_span["AP-2 -> AP-3"]["critical_metric"] == pytest.approx(8.0)
+    assert props_by_span["AP-2 -> AP-3"]["wind_direction"] == pytest.approx(90.0)
 
 
 def test_run_preparation_does_not_use_legacy_pipeline_or_towers(client, monkeypatch, tmp_path):
