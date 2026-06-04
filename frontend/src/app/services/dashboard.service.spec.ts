@@ -40,6 +40,29 @@ describe('DashboardService', () => {
     req.flush({ message: 'boom' }, { status: 500, statusText: 'Server Error' });
   });
 
+  it('should call the modern preparation endpoint', () => {
+    service.runPreparation('/data/case-a').subscribe((res) => {
+      expect(res.status).toBe('ok');
+      expect(res.domain?.['generated']).toBe(true);
+    });
+
+    const req = httpMock.expectOne((r) => r.url.includes('/pipeline/run-preparation'));
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ case_path: '/data/case-a' });
+    req.flush({ status: 'ok', case_path: '/data/case-a', domain: { generated: true } });
+  });
+
+  it('should call the WindNinja endpoint separately from preparation', () => {
+    service.runWindNinja('/data/case-a').subscribe((res) => {
+      expect(res.windninja_success).toBe(true);
+    });
+
+    const req = httpMock.expectOne((r) => r.url.includes('/pipeline/run-windninja'));
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ case_path: '/data/case-a' });
+    req.flush({ status: 'ok', case_path: '/data/case-a', windninja_success: true });
+  });
+
   it('should adapt legacy completed job status to canonical finished', () => {
     service.getMeteoSummaryStatus('j1').subscribe((res) => {
       expect(res.status).toBe('finished');

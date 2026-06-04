@@ -60,13 +60,24 @@ export interface GenerateDomainFromSupportsResponse {
   [key: string]: unknown;
 }
 
-export interface GenerateVanosFromSupportsResponse {
+export interface PreparationPipelineResponse {
   status: string;
-  message: string;
-  created: boolean;
-  vanos_count: number;
-  output_shp: string;
-  output_geojson: string;
+  case_path: string;
+  domain?: Record<string, unknown>;
+  vanos?: Record<string, unknown>;
+  dem?: Record<string, unknown>;
+  weather?: Record<string, unknown>;
+  geometry_results?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface WindNinjaRunResponse {
+  status: string;
+  case_path?: string;
+  windninja_success?: boolean;
+  rename_success?: boolean;
+  worst_supports_success?: boolean;
+  wind_rose_success?: boolean;
   [key: string]: unknown;
 }
 
@@ -110,9 +121,15 @@ export class DashboardService {
       { case_path: casePath }
     );
   }
-  generateVanosFromSupports(casePath: string): Observable<GenerateVanosFromSupportsResponse> {
-    return this.http.post<GenerateVanosFromSupportsResponse>(
-      `${this.apiUrl}/vanos/generate-from-supports`,
+  runPreparation(casePath: string): Observable<PreparationPipelineResponse> {
+    return this.http.post<PreparationPipelineResponse>(
+      `${this.apiUrl}/pipeline/run-preparation`,
+      { case_path: casePath }
+    );
+  }
+  runWindNinja(casePath: string): Observable<WindNinjaRunResponse> {
+    return this.http.post<WindNinjaRunResponse>(
+      `${this.apiUrl}/pipeline/run-windninja`,
       { case_path: casePath }
     );
   }

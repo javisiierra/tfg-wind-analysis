@@ -339,6 +339,94 @@ def test_run_preparation_does_not_use_legacy_pipeline_or_towers(client, monkeypa
     assert called["run_base"] == 0
 
 
+def test_run_preparation_generates_domain_with_domain_generation_service(client, monkeypatch, tmp_path):
+    case_path = tmp_path / "case_prep_domain_service"
+    case_path.mkdir(parents=True)
+    supports_path = case_path / "Apoyos" / "apoyos.shp"
+    supports_path.parent.mkdir(parents=True)
+    supports_path.touch()
+    domain_path = case_path / "SHP" / "dominio.shp"
+    domain_path.parent.mkdir(parents=True)
+    cfg = SimpleNamespace(
+        in_shp=str(domain_path),
+        out_shp=str(case_path / "Calculos" / "out.shp"),
+        out_rec_shp=str(case_path / "Calculos" / "out_rec.shp"),
+        out_rec_exp_shp=str(case_path / "SHP" / "dominio_exp.shp"),
+        out_mdt_tif=str(case_path / "MDT_WN" / "mdt.tif"),
+    )
+    calls = {"generate_from_supports": 0}
+    domain_lookup = iter([None, domain_path])
+
+    class _DomainResult:
+        def to_dict(self):
+            return {
+                "domain_shp": str(domain_path),
+                "domain_geojson": str(domain_path.with_suffix(".geojson")),
+                "source": "supports",
+            }
+
+    class _DomainService:
+        def generate_from_supports(self, case_path_arg, supports_path_arg, buffer_m=None):
+            calls["generate_from_supports"] += 1
+            assert case_path_arg == str(case_path)
+            assert supports_path_arg == supports_path
+            domain_path.touch()
+            return _DomainResult()
+
+    monkeypatch.setattr(pipeline, "load_cfg_from_case_or_raise", lambda _: cfg)
+    monkeypatch.setattr(pipeline, "get_existing_domain_path", lambda _: next(domain_lookup))
+    monkeypatch.setattr(pipeline, "get_trace_shapefile_path", lambda _: None)
+    monkeypatch.setattr(pipeline, "get_supports_shapefile_path", lambda _: supports_path)
+    monkeypatch.setattr(pipeline, "domain_generation_service", _DomainService())
+    monkeypatch.setattr(pipeline, "_ensure_vanos_for_preparation", lambda *_: {"status": "skipped"})
+    monkeypatch.setattr(pipeline, "run_geometry_and_dem", lambda _cfg: {"minx": 0, "miny": 0, "maxx": 1, "maxy": 1})
+    monkeypatch.setattr(pipeline, "_generate_weather_for_cfg", lambda _cfg: {"points": [], "station_files": []})
+
+    response = client.post("/api/v1/pipeline/run-preparation", json={"case_path": str(case_path)})
+
+    assert response.status_code == 200
+    assert calls["generate_from_supports"] == 1
+    assert response.json()["domain"]["source"] == "supports"
+
+
+def test_run_preparation_generates_missing_vanos_in_backend(client, monkeypatch, tmp_path):
+    case_path = tmp_path / "case_prep_vanos"
+    domain_path = case_path / "SHP" / "dominio.shp"
+    supports_path = case_path / "Apoyos" / "apoyos.shp"
+    domain_path.parent.mkdir(parents=True)
+    supports_path.parent.mkdir(parents=True)
+    domain_path.touch()
+    supports_path.touch()
+    cfg = SimpleNamespace(
+        in_shp=str(domain_path),
+        out_shp=str(case_path / "Calculos" / "out.shp"),
+        out_rec_shp=str(case_path / "Calculos" / "out_rec.shp"),
+        out_rec_exp_shp=str(case_path / "SHP" / "dominio_exp.shp"),
+        out_mdt_tif=str(case_path / "MDT_WN" / "mdt.tif"),
+    )
+    called = {"vanos": 0}
+
+    def _generate_vanos(case_path_arg, cfg_arg):
+        called["vanos"] += 1
+        assert case_path_arg == str(case_path)
+        assert cfg_arg is cfg
+        return {"status": "ok", "created": True, "output_shp": str(case_path / "SHP" / "vanos.shp")}
+
+    monkeypatch.setattr(pipeline, "load_cfg_from_case_or_raise", lambda _: cfg)
+    monkeypatch.setattr(pipeline, "get_existing_domain_path", lambda _: domain_path)
+    monkeypatch.setattr(pipeline, "find_existing_vanos_path", lambda *_: None)
+    monkeypatch.setattr(pipeline, "get_supports_shapefile_path", lambda _: supports_path)
+    monkeypatch.setattr(pipeline, "generate_vanos_from_supports_service", _generate_vanos)
+    monkeypatch.setattr(pipeline, "run_geometry_and_dem", lambda _cfg: {"minx": 0, "miny": 0, "maxx": 1, "maxy": 1})
+    monkeypatch.setattr(pipeline, "_generate_weather_for_cfg", lambda _cfg: {"points": [], "station_files": []})
+
+    response = client.post("/api/v1/pipeline/run-preparation", json={"case_path": str(case_path)})
+
+    assert response.status_code == 200
+    assert called["vanos"] == 1
+    assert response.json()["vanos"]["status"] == "generated"
+
+
 def _windninja_cfg(tmp_path: Path):
     domain = tmp_path / "SHP" / "dominio.shp"
     domain.parent.mkdir(parents=True)

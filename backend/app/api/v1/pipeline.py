@@ -143,8 +143,9 @@ def get_trace_shapefile_path(case_path: str) -> Path | None:
 
 def get_supports_shapefile_path(case_path: str) -> Path | None:
     cfg = load_cfg_from_case_or_raise(case_path)
+    configured_supports = getattr(cfg, "out_apoyos_shp", None)
     return get_existing_path(
-        Path(cfg.out_apoyos_shp) if cfg.out_apoyos_shp else None,
+        Path(configured_supports) if configured_supports else None,
         normalize_case_path(case_path) / "Apoyos" / "apoyos.shp",
     )
 
@@ -176,6 +177,29 @@ def _generate_domain_from_supports_logic(case_path: str, buffer_m: float | None 
             buffer_m=buffer_m,
         ).to_dict()
     except DomainGenerationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _ensure_vanos_for_preparation(case_path_value: str, cfg) -> dict[str, Any]:
+    case_path = normalize_case_path(case_path_value)
+    existing_vanos = find_existing_vanos_path(case_path, cfg)
+    if existing_vanos is not None:
+        return {"status": "reused", "path": str(existing_vanos)}
+
+    supports_path = get_supports_shapefile_path(case_path_value)
+    if supports_path is None:
+        return {
+            "status": "skipped",
+            "reason": "No existen apoyos para generar vanos.",
+        }
+
+    try:
+        result = generate_vanos_from_supports_service(case_path_value, cfg)
+        return {
+            **result,
+            "status": "generated",
+        }
+    except VanosGenerationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
@@ -711,6 +735,7 @@ def run_preparation(request: PipelineRequest):
         )
     cfg = _with_domain_input(cfg, domain_path)
 
+    vanos_result = _ensure_vanos_for_preparation(request.case_path, cfg)
     dem_result = run_geometry_and_dem(cfg)
     weather_result = _generate_weather_for_cfg(cfg)
 
@@ -721,6 +746,7 @@ def run_preparation(request: PipelineRequest):
             "path": str(domain_path) if domain_path else None,
             **domain_info,
         },
+        "vanos": vanos_result,
         "dem": {
             "out_shp": str(cfg.out_shp) if cfg.out_shp else None,
             "out_rec_shp": str(cfg.out_rec_shp) if cfg.out_rec_shp else None,

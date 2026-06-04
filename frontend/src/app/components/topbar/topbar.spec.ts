@@ -56,33 +56,27 @@ describe('Topbar', () => {
     expect(completedSpy).toHaveBeenCalledWith('/data/case-a');
   });
 
-  it('Ejecutar preparación should skip existing domain and vanos', async () => {
+  it('Ejecutar preparación should call modern preparation then WindNinja', async () => {
     const completedSpy = vi.fn();
     component.casePath = '/data/case-ready-inputs';
     component.preparationCompleted.subscribe(completedSpy);
 
     const promise = component.executePreparationPipeline();
 
-    flushRequest(`${apiUrl}/case/status`, {
+    flushRequest(`${apiUrl}/pipeline/run-preparation`, {
       status: 'ok',
       case_path: component.casePath,
-      has_domain: true,
-      has_vanos: true,
-      has_dem: false,
-      has_weather: false,
-      has_apoyos: true,
-      ready_for_windninja: false
+      domain: { generated: false },
+      dem: { out_mdt_tif: '/data/case-ready-inputs/MDT_WN/mdt.tif' },
+      weather: { station_files: [] }
     });
     await tickPromises();
 
+    httpMock.expectNone(`${apiUrl}/case/status`);
     httpMock.expectNone(`${apiUrl}/domain/generate-from-supports`);
     httpMock.expectNone(`${apiUrl}/vanos/generate-from-supports`);
-
-    flushRequest(`${apiUrl}/domain/generate-dem`, { status: 'ok' });
-    await tickPromises();
-
-    flushRequest(`${apiUrl}/domain/generate-weather`, { status: 'ok' });
-    await tickPromises();
+    httpMock.expectNone(`${apiUrl}/domain/generate-dem`);
+    httpMock.expectNone(`${apiUrl}/domain/generate-weather`);
 
     flushRequest(`${apiUrl}/pipeline/run-windninja`, {
       status: 'ok',
@@ -95,45 +89,19 @@ describe('Topbar', () => {
     expect(completedSpy).toHaveBeenCalledWith('/data/case-ready-inputs');
   });
 
-  it('Ejecutar preparación should run domain, vanos, DEM, weather and WindNinja in order', async () => {
+  it('Ejecutar preparación should expose WindNinja result', async () => {
     component.casePath = '/data/case-needs-inputs';
 
     const promise = component.executePreparationPipeline();
 
-    flushRequest(`${apiUrl}/case/status`, {
+    flushRequest(`${apiUrl}/pipeline/run-preparation`, {
       status: 'ok',
       case_path: component.casePath,
-      has_domain: false,
-      has_vanos: false,
-      has_dem: false,
-      has_weather: false,
-      has_apoyos: true,
-      ready_for_windninja: false
+      domain: { generated: true },
+      vanos: { status: 'generated' },
+      dem: { out_mdt_tif: '/data/case-needs-inputs/MDT_WN/mdt.tif' },
+      weather: { station_files: [] }
     });
-    await tickPromises();
-
-    flushRequest(`${apiUrl}/domain/generate-from-supports`, { status: 'ok' });
-    await tickPromises();
-
-    flushRequest(`${apiUrl}/case/status`, {
-      status: 'ok',
-      case_path: component.casePath,
-      has_domain: true,
-      has_vanos: false,
-      has_dem: false,
-      has_weather: false,
-      has_apoyos: true,
-      ready_for_windninja: false
-    });
-    await tickPromises();
-
-    flushRequest(`${apiUrl}/vanos/generate-from-supports`, { status: 'ok' });
-    await tickPromises();
-
-    flushRequest(`${apiUrl}/domain/generate-dem`, { status: 'ok' });
-    await tickPromises();
-
-    flushRequest(`${apiUrl}/domain/generate-weather`, { status: 'ok' });
     await tickPromises();
 
     flushRequest(`${apiUrl}/pipeline/run-windninja`, { status: 'ok', windninja_success: true });
@@ -142,35 +110,24 @@ describe('Topbar', () => {
     expect(component.result?.['windninja_success']).toBe(true);
   });
 
-  it('Ejecutar preparación should stop and emit error when a stage fails', async () => {
+  it('Ejecutar preparación should stop and emit error when preparation fails', async () => {
     const stateSpy = vi.fn();
     component.casePath = '/data/case-error';
     component.executionUiStateChange.subscribe(stateSpy);
 
     const promise = component.executePreparationPipeline();
 
-    flushRequest(`${apiUrl}/case/status`, {
-      status: 'ok',
-      case_path: component.casePath,
-      has_domain: true,
-      has_vanos: true,
-      has_dem: false,
-      has_weather: false,
-      has_apoyos: true,
-      ready_for_windninja: false
-    });
-    await tickPromises();
-
-    const demReq = httpMock.expectOne(`${apiUrl}/domain/generate-dem`);
-    demReq.flush({ detail: 'DEM failed' }, { status: 500, statusText: 'Server Error' });
+    const preparationReq = httpMock.expectOne(`${apiUrl}/pipeline/run-preparation`);
+    preparationReq.flush({ detail: 'DEM failed' }, { status: 500, statusText: 'Server Error' });
     await promise;
 
+    httpMock.expectNone(`${apiUrl}/domain/generate-dem`);
     httpMock.expectNone(`${apiUrl}/domain/generate-weather`);
     httpMock.expectNone(`${apiUrl}/pipeline/run-windninja`);
     expect(stateSpy).toHaveBeenLastCalledWith({
       status: 'error',
       title: 'Error',
-      stage: 'Generando DEM',
+      stage: 'Preparando dominio, DEM y meteorologia',
       detail: 'DEM failed'
     });
   });
