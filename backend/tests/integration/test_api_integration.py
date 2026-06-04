@@ -5,6 +5,7 @@ from importlib.util import find_spec
 import pytest
 
 HAS_FASTAPI = find_spec("fastapi") is not None
+HAS_GIS = find_spec("geopandas") is not None and find_spec("shapely") is not None
 
 if HAS_FASTAPI:
     from fastapi import HTTPException
@@ -17,6 +18,10 @@ else:
     pipeline = None
     Config = None
     app = None
+
+if HAS_GIS:
+    import geopandas as gpd
+    from shapely.geometry import Point
 
 
 @pytest.fixture()
@@ -425,6 +430,103 @@ def test_run_preparation_generates_missing_vanos_in_backend(client, monkeypatch,
     assert response.status_code == 200
     assert called["vanos"] == 1
     assert response.json()["vanos"]["status"] == "generated"
+
+
+@pytest.mark.skipif(not HAS_GIS, reason="geopandas/shapely no estan disponibles")
+def test_run_preparation_generates_real_domain_and_vanos_with_external_edges_mocked(client, monkeypatch, tmp_path):
+    case_path = tmp_path / "case_prep_semint"
+    supports_path = case_path / "Apoyos" / "apoyos.shp"
+    supports_path.parent.mkdir(parents=True)
+    gpd.GeoDataFrame(
+        {
+            "id": ["AP-1", "AP-2", "AP-3"],
+            "support_order": [1, 2, 3],
+        },
+        geometry=[
+            Point(500000, 4800000),
+            Point(500100, 4800000),
+            Point(500200, 4800100),
+        ],
+        crs="EPSG:25830",
+    ).to_file(supports_path, driver="ESRI Shapefile", encoding="UTF-8")
+
+    called = {"dem": 0, "weather": 0, "run_towers": 0, "run_base": 0}
+
+    def _fake_dem(cfg):
+        called["dem"] += 1
+        assert Path(cfg.in_shp) == case_path / "SHP" / "dominio.shp"
+        Path(cfg.out_mdt_tif).parent.mkdir(parents=True, exist_ok=True)
+        Path(cfg.out_mdt_tif).write_text("mock dem", encoding="utf-8")
+        return {"minx": 500000.0, "miny": 4800000.0, "maxx": 500200.0, "maxy": 4800100.0}
+
+    def _fake_weather(cfg):
+        called["weather"] += 1
+        weather_dir = Path(cfg.general_path) / "Weather_Input_Data"
+        weather_dir.mkdir(parents=True, exist_ok=True)
+        station_file = weather_dir / "WN_input_Point_1.csv"
+        station_file.write_text("date_time,wind_speed,wind_direction\n2024-01-01T00:00:00Z,1,0\n", encoding="utf-8")
+        station_list = weather_dir / "WN_PointInit_Path.csv"
+        station_list.write_text("Station_File_List,\nWN_input_Point_1.csv\n", encoding="utf-8")
+        return {
+            "points": [{"name": "P1", "utm_x": 500000.0, "utm_y": 4800000.0}],
+            "station_list_file": str(station_list),
+            "station_files": [str(station_file)],
+        }
+
+    def _legacy_towers_called(*_args, **_kwargs):
+        called["run_towers"] += 1
+        raise AssertionError("run_towers should not be called by run-preparation")
+
+    def _legacy_base_called(*_args, **_kwargs):
+        called["run_base"] += 1
+        raise AssertionError("run-base should not be called by run-preparation")
+
+    monkeypatch.setattr(pipeline, "run_geometry_and_dem", _fake_dem)
+    monkeypatch.setattr(pipeline, "_generate_weather_for_cfg", _fake_weather)
+    monkeypatch.setattr(pipeline, "run_towers", _legacy_towers_called)
+    monkeypatch.setattr(pipeline, "run_base_pipeline", _legacy_base_called)
+
+    response = client.post("/api/v1/pipeline/run-preparation", json={"case_path": str(case_path)})
+
+    assert response.status_code == 200
+    body = response.json()
+
+    domain_shp = case_path / "SHP" / "dominio.shp"
+    domain_geojson = case_path / "SHP" / "dominio.geojson"
+    vanos_shp = case_path / "SHP" / "vanos.shp"
+    vanos_geojson = case_path / "SHP" / "vanos.geojson"
+    dem_path = case_path / "MDT_WN" / f"MDT_WN_{case_path.name}.tif"
+    station_list = case_path / "Weather_Input_Data" / "WN_PointInit_Path.csv"
+
+    assert called == {"dem": 1, "weather": 1, "run_towers": 0, "run_base": 0}
+    assert domain_shp.exists()
+    assert domain_geojson.exists()
+    assert vanos_shp.exists()
+    assert vanos_geojson.exists()
+    assert dem_path.exists()
+    assert station_list.exists()
+    assert len(gpd.read_file(domain_shp)) == 1
+    assert len(gpd.read_file(vanos_shp)) == 2
+
+    assert body["status"] == "ok"
+    assert body["domain"]["source"] == "supports"
+    assert body["domain"]["path"] == str(domain_shp)
+    assert body["domain"]["domain_shp"] == str(domain_shp)
+    assert body["domain"]["domain_geojson"] == str(domain_geojson)
+    assert body["vanos"]["status"] == "generated"
+    assert body["vanos"]["created"] is True
+    assert body["vanos"]["vanos_count"] == 2
+    assert body["vanos"]["output_shp"] == str(vanos_shp)
+    assert body["vanos"]["output_geojson"] == str(vanos_geojson)
+    assert body["dem"]["out_mdt_tif"] == str(dem_path)
+    assert body["weather"]["station_list_file"] == str(station_list)
+    assert body["weather"]["station_files"]
+    assert body["geometry_results"] == {
+        "minx": 500000.0,
+        "miny": 4800000.0,
+        "maxx": 500200.0,
+        "maxy": 4800100.0,
+    }
 
 
 def _windninja_cfg(tmp_path: Path):
