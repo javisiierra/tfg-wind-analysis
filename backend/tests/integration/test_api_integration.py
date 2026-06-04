@@ -7,6 +7,7 @@ import pytest
 HAS_FASTAPI = find_spec("fastapi") is not None
 HAS_GIS = find_spec("geopandas") is not None and find_spec("shapely") is not None
 HAS_RASTER = find_spec("rasterio") is not None and find_spec("pyproj") is not None
+HAS_EXCEL = find_spec("pandas") is not None and find_spec("openpyxl") is not None
 
 if HAS_FASTAPI:
     from fastapi import HTTPException
@@ -22,7 +23,10 @@ else:
 
 if HAS_GIS:
     import geopandas as gpd
-    from shapely.geometry import Point
+    from shapely.geometry import LineString, Point
+
+if HAS_EXCEL:
+    import pandas as pd
 
 
 @pytest.fixture()
@@ -48,6 +52,106 @@ def test_import_folder_endpoint_uses_service_mock(client, monkeypatch, tmp_path)
 
     assert response.status_code == 200
     assert response.json() == expected
+
+
+@pytest.mark.skipif(not (HAS_GIS and HAS_EXCEL), reason="dependencias GIS/Excel no disponibles")
+def test_import_folder_creates_real_case_artifacts_compatible_with_domain_and_vanos(client, tmp_path):
+    from app.services.domain.generation_service import DomainGenerationService
+    from app.services.vanos.vanos_from_supports_service import generate_vanos_from_supports
+
+    case_path = tmp_path / "cliente_minimo"
+    input_apoyos_dir = case_path / "Apoyos"
+    input_apoyos_dir.mkdir(parents=True)
+
+    excel_path = input_apoyos_dir / "apoyos_cliente.xlsx"
+    pd.DataFrame(
+        {
+            "id": ["AP-1", "AP-2", "AP-3"],
+            "support_order": [1, 2, 3],
+            "X": [500000.0, 500100.0, 500200.0],
+            "Y": [4800000.0, 4800000.0, 4800100.0],
+        }
+    ).to_excel(excel_path, index=False)
+
+    trace_path = case_path / "traza_cliente.shp"
+    gpd.GeoDataFrame(
+        {"name": ["trace"]},
+        geometry=[LineString([(500000, 4800000), (500100, 4800000), (500200, 4800100)])],
+        crs="EPSG:25830",
+    ).to_file(trace_path, driver="ESRI Shapefile", encoding="UTF-8")
+
+    response = client.post("/api/v1/case/import-folder", json={"input_path": str(case_path)})
+
+    assert response.status_code == 200
+    assert response.json() == {"case_path": str(case_path.resolve()), "status": "ready"}
+
+    expected_dirs = [
+        case_path / "SHP",
+        case_path / "Apoyos",
+        case_path / "MDT_WN",
+        case_path / "Weather_Input_Data",
+        case_path / "OUT_WN",
+        case_path / "OUT_WN_REN",
+        case_path / "WR",
+    ]
+    assert all(path.exists() and path.is_dir() for path in expected_dirs)
+
+    copied_excel = case_path / "Apoyos" / f"Apoyos {case_path.name}.xlsx"
+    named_supports_shp = case_path / "Apoyos" / f"Apoyos {case_path.name}.shp"
+    generic_supports_shp = case_path / "Apoyos" / "apoyos.shp"
+    supports_geojson = case_path / "Apoyos" / "apoyos.geojson"
+    imported_trace_shp = case_path / "SHP" / "traza.shp"
+    root_trace_shp = case_path / f"{case_path.name}.shp"
+    domain_shp = case_path / "SHP" / "dominio.shp"
+    domain_geojson = case_path / "SHP" / "dominio.geojson"
+
+    for path in [
+        copied_excel,
+        named_supports_shp,
+        generic_supports_shp,
+        supports_geojson,
+        imported_trace_shp,
+        root_trace_shp,
+        domain_shp,
+        domain_geojson,
+    ]:
+        assert path.exists()
+
+    supports = gpd.read_file(generic_supports_shp)
+    assert len(supports) == 3
+    assert supports.crs.to_epsg() == 25830
+    assert supports.geometry.geom_type.tolist() == ["Point", "Point", "Point"]
+    assert supports["id"].tolist() == ["AP-1", "AP-2", "AP-3"]
+    order_column = "support_order" if "support_order" in supports.columns else "support_or"
+    assert supports[order_column].astype(int).tolist() == [1, 2, 3]
+
+    supports_json = gpd.read_file(supports_geojson)
+    assert len(supports_json) == 3
+    assert supports_json.crs.to_epsg() == 25830
+
+    trace = gpd.read_file(imported_trace_shp)
+    assert len(trace) == 1
+    assert trace.crs.to_epsg() == 25830
+    assert trace.geometry.iloc[0].geom_type == "LineString"
+
+    domain_service = DomainGenerationService()
+    domain_bounds = domain_service.read_domain_bounds_wgs84(case_path)
+    assert domain_bounds is not None
+    assert domain_bounds[1] == "dominio.geojson"
+
+    cfg = Config.from_case_path(case_path)
+    assert cfg.in_xlsx == copied_excel
+    assert cfg.out_apoyos_shp == generic_supports_shp
+    assert cfg.in_shp == domain_shp
+
+    vanos_result = generate_vanos_from_supports(case_path, cfg)
+    vanos_shp = case_path / "SHP" / "vanos.shp"
+    vanos_geojson = case_path / "SHP" / "vanos.geojson"
+    assert vanos_result["created"] is True
+    assert vanos_result["vanos_count"] == 2
+    assert vanos_shp.exists()
+    assert vanos_geojson.exists()
+    assert len(gpd.read_file(vanos_shp)) == 2
 
 
 def test_generate_domain_from_supports_with_service_mock(client, monkeypatch, tmp_path):
