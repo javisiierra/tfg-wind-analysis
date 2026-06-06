@@ -22,7 +22,7 @@ describe('DashboardChartService', () => {
     expect(config.data.datasets[0].data).toEqual([3.2, 4.1]);
     expect(config.data.datasets[0].backgroundColor).toBe('rgba(37, 99, 235, .72)');
     expect(config.data.datasets[1].type).toBe('line');
-    expect(config.data.datasets[1].label).toBe('Velocidad mÃ¡xima (m/s)');
+    expect(config.data.datasets[1].label).toBe('Velocidad máxima (m/s)');
     expect(config.data.datasets[1].data).toEqual([8.4, 9.2]);
     expect(config.data.datasets[1].borderColor).toBe('#ef4444');
   });

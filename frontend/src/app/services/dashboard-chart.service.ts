@@ -73,7 +73,7 @@ export class DashboardChartService {
             hoverBackgroundColor: 'rgba(37, 99, 235, .92)'
           },
           {
-            label: 'Velocidad mÃ¡xima (m/s)',
+            label: 'Velocidad máxima (m/s)',
             data: maxData,
             type: 'line',
             tension: 0.3,
