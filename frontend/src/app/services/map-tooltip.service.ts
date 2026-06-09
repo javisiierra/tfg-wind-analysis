@@ -67,6 +67,7 @@ export class MapTooltipService {
         Tramo: ${this.normalizer.getCriticalSpanLabel(props) ?? id}<br>
         ${direction !== undefined ? `Direcci&oacute;n: ${this.formatNumber(direction)}&deg;<br>` : ''}
         ${this.buildWindMetricsHtml(props)}
+        ${this.buildCriticalReasonHtml(props)}
       `;
     }
 
@@ -100,14 +101,18 @@ export class MapTooltipService {
     const windSpeed = props['wind_speed'];
     const vperpMin = props['critical_metric'];
     const relativeAngle = props['angle_relative'];
-    const reason = this.normalizer.pickProperty(props, ['critical_reason']);
 
     return `
         ${windSpeed !== undefined ? `Velocidad viento: ${this.formatNumber(windSpeed)} m/s<br>` : ''}
         ${vperpMin !== undefined ? `Componente perpendicular m&iacute;nima: ${this.formatNumber(vperpMin)} m/s<br>` : ''}
         ${relativeAngle !== undefined ? `&Aacute;ngulo relativo: ${this.formatNumber(relativeAngle)}&deg;<br>` : ''}
-        ${reason !== undefined ? `Motivo: ${reason}<br>` : ''}
       `;
+  }
+
+  private buildCriticalReasonHtml(props: Record<string, any>): string {
+    const reason = this.normalizer.pickProperty(props, ['critical_reason']);
+
+    return reason !== undefined ? `Motivo: ${reason}<br>` : '';
   }
 
   private formatNumber(value: any): string {

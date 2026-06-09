@@ -112,6 +112,7 @@ describe('MapComponent', () => {
     expect(html).toContain('Velocidad viento: 8.57 m/s');
     expect(html).toContain('Componente perpendicular m&iacute;nima: 1.23 m/s');
     expect(html).toContain('&Aacute;ngulo relativo: 12.35&deg;');
+    expect(html).not.toContain('Motivo:');
   });
 
   it('should keep critical spans above supports by zIndex', () => {
