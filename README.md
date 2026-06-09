@@ -69,7 +69,7 @@ Si alguna variable falta o esta vacia, la aplicacion puede arrancar, pero fallar
 Edita `HOST_CASES_ROOT` en `.env` para indicar donde estan los casos en tu ordenador:
 
 ```env
-HOST_CASES_ROOT=C:/Datos_TFG
+HOST_CASES_ROOT=C:/Ruta/A/Tus/Casos
 ```
 
 Cada persona puede usar su propia ruta local, por ejemplo:

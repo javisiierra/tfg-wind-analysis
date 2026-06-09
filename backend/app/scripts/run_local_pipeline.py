@@ -23,7 +23,6 @@ from app.services.towers.towers_to_points_service import (
 )
 from app.services.wind.rename_files_service import run_rename
 from app.services.wind.source_service import (
-    fetch_aemet_daily_station,
     fetch_era5_hourly_point,
     fetch_power_hourly,
     parse_date_str,

@@ -13,11 +13,13 @@ if HAS_FASTAPI:
     from fastapi import HTTPException
     from fastapi.testclient import TestClient
     from app.api.v1 import pipeline
+    from app.api.v1.layer_response import _enrich_worst_supports_geojson
     from app.core.config import Config
     from app.main import app
 else:
     TestClient = None
     pipeline = None
+    _enrich_worst_supports_geojson = None
     Config = None
     app = None
 
@@ -355,7 +357,7 @@ def test_worst_supports_geojson_enrichment_keeps_existing_metrics():
         ],
     }
 
-    enriched = pipeline._enrich_worst_supports_geojson(geojson)
+    enriched = _enrich_worst_supports_geojson(geojson)
     props = enriched["features"][0]["properties"]
 
     assert "vperp_min" not in props

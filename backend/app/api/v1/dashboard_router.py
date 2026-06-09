@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, model_validator
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Dict, List, Literal, Optional, Tuple
 import logging
 
 from app.services.dashboard.weather_dashboard_service import DashboardDataError, WeatherDashboardService

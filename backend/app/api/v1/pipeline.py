@@ -13,7 +13,6 @@ from shapely.geometry import shape
 from app.core.config import load_config_from_case
 from app.core.paths import normalize_case_path
 from app.api.v1.layer_response import (
-    _enrich_worst_supports_geojson,
     geojson_file_to_geojson_response,
     shapefile_to_geojson_response,
 )
@@ -40,7 +39,15 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 domain_generation_service = DomainGenerationService()
 
-BASE_ROOT = normalize_case_path(Path(os.getenv("HOST_CASES_ROOT", r"C:\Datos_TFG")))
+
+def _required_env_path(name: str) -> Path:
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"Configura {name} en .env antes de arrancar el backend.")
+    return normalize_case_path(Path(value))
+
+
+BASE_ROOT = _required_env_path("HOST_CASES_ROOT")
 
 
 # ============================================================

@@ -1,13 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable
-
 import geopandas as gpd
 import pandas as pd
 from fastapi import HTTPException
 from shapely.geometry import Point
-from shapely.wkt import loads as load_wkt
 
 from app.core.paths import normalize_case_path
 from app.services.domain.generation_service import DomainGenerationError, DomainGenerationService
