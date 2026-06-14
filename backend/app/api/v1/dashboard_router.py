@@ -1,10 +1,11 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, model_validator
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Dict, List, Literal, Optional, Tuple
 import logging
 
 from app.services.dashboard.weather_dashboard_service import DashboardDataError, WeatherDashboardService
 from app.services.dashboard.job_store import DashboardJobStore
+from app.api.v1.contracts import DashboardJobStatusDTO, api_error
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 service = WeatherDashboardService()
@@ -75,6 +76,8 @@ class WindRoseData(BaseModel):
     direction: str
     frequency: float
     velocity_range: Dict[str, float]
+    mean_speed: Optional[float] = None
+    sample_count: Optional[int] = None
     source: str
     request_id: str
     domain_bbox: Optional[Tuple[float, float, float, float]] = None
@@ -86,15 +89,6 @@ class WindRoseData(BaseModel):
 class StartJobResponse(BaseModel):
     job_id: str
     status: Literal["queued"]
-
-
-class DashboardJobStatus(BaseModel):
-    job_id: str
-    status: Literal["queued", "running", "finished", "failed"]
-    progress: int
-    message: str
-    result: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
 
 
 def _run_dashboard_job(job_id: str, request: MeteoRequest) -> None:
@@ -121,12 +115,12 @@ async def start_meteo_summary_job(request: MeteoRequest):
     return StartJobResponse(job_id=job_id, status="queued")
 
 
-@router.get("/meteo-summary/status/{job_id}", response_model=DashboardJobStatus)
+@router.get("/meteo-summary/status/{job_id}", response_model=DashboardJobStatusDTO)
 async def get_meteo_summary_job_status(job_id: str):
     job = job_store.get(job_id)
     if job is None:
-        raise HTTPException(status_code=404, detail="job_id no encontrado")
-    return DashboardJobStatus(**job)
+        raise HTTPException(status_code=404, detail=api_error("JOB_NOT_FOUND", "job_id no encontrado"))
+    return DashboardJobStatusDTO(**job)
 
 
 @router.post("/meteo-summary", response_model=MeteoSummary)
@@ -134,7 +128,7 @@ async def get_meteo_summary(request: MeteoRequest):
     try:
         return MeteoSummary(**service.get_meteo_summary(request.year, request))
     except DashboardDataError as exc:
-        raise HTTPException(status_code=exc.http_status, detail={"error_code": exc.error_code, "message": str(exc)}) from exc
+        raise HTTPException(status_code=exc.http_status, detail=api_error(exc.error_code, str(exc))) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -145,7 +139,7 @@ async def get_wind_timeseries(request: MeteoRequest):
         result = service.get_wind_timeseries(request.year, request)
         return [WindTimeseries(**item, source=result["source"], request_id=result["request_id"], domain_bbox=result["domain_bbox"], time_range=result["time_range"], crs=result["crs"], status=result["status"]) for item in result["items"]]
     except DashboardDataError as exc:
-        raise HTTPException(status_code=exc.http_status, detail={"error_code": exc.error_code, "message": str(exc)}) from exc
+        raise HTTPException(status_code=exc.http_status, detail=api_error(exc.error_code, str(exc))) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -156,6 +150,6 @@ async def get_wind_rose(request: MeteoRequest):
         result = service.get_wind_rose(request.year, request)
         return [WindRoseData(**item, source=result["source"], request_id=result["request_id"], domain_bbox=result["domain_bbox"], time_range=result["time_range"], crs=result["crs"], status=result["status"]) for item in result["items"]]
     except DashboardDataError as exc:
-        raise HTTPException(status_code=exc.http_status, detail={"error_code": exc.error_code, "message": str(exc)}) from exc
+        raise HTTPException(status_code=exc.http_status, detail=api_error(exc.error_code, str(exc))) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

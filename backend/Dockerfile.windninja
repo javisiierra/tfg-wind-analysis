@@ -1,0 +1,109 @@
+FROM ubuntu:18.04 AS windninja-builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+ARG WINDNINJA_VERSION=3.12.1
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        cmake \
+        git \
+        pkg-config \
+        gdal-bin \
+        qt4-default \
+        libqt4-dev \
+        libqtwebkit-dev \
+        libboost-date-time-dev \
+        libboost-program-options-dev \
+        libboost-test-dev \
+        libcurl4-openssl-dev \
+        libgdal-dev \
+        libgeos-dev \
+        libnetcdf-dev \
+        libproj-dev \
+        libshp-dev \
+        libspatialindex-dev \
+        libsqlite3-dev \
+        zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN git clone --depth 1 --branch "${WINDNINJA_VERSION}" \
+    https://github.com/firelab/windninja.git /opt/src/windninja \
+    && test "$(cat /opt/src/windninja/VERSION)" = "${WINDNINJA_VERSION}"
+
+RUN mkdir -p /opt/src/windninja/build \
+    && cd /opt/src/windninja/build \
+    && cmake \
+        -D SUPRESS_WARNINGS=ON \
+        -D NINJA_CLI=ON \
+        -D NINJA_GUI=OFF \
+        -D NINJAFOAM=OFF \
+        -D BUILD_FETCH_DEM=ON \
+        -D BUILD_SLOPE_ASPECT_GRID=OFF \
+        -D BUILD_FLOW_SEPARATION_GRID=OFF \
+        .. \
+    && make -j"$(nproc)" \
+    && make install
+
+RUN mkdir -p \
+        /opt/windninja-runtime/bin \
+        /opt/windninja-runtime/lib \
+        /opt/windninja-runtime/data \
+        /opt/windninja-runtime/share/gdal \
+        /opt/windninja-runtime/share/proj \
+    && cp /usr/local/bin/WindNinja_cli /opt/windninja-runtime/bin/ \
+    && cp /usr/local/bin/fetch_dem /opt/windninja-runtime/bin/ \
+    && cp -r /opt/src/windninja/data/* /opt/windninja-runtime/data/ \
+    && cp -r /usr/share/gdal/* /opt/windninja-runtime/share/gdal/ \
+    && if [ -d /usr/share/gdal/2.2 ]; then cp -r /usr/share/gdal/2.2/* /opt/windninja-runtime/share/gdal/; fi \
+    && cp -r /usr/share/proj/* /opt/windninja-runtime/share/proj/ \
+    && (ldd /usr/local/bin/WindNinja_cli; ldd /usr/local/bin/fetch_dem) \
+        | awk '{ for (i = 1; i <= NF; i++) if ($i ~ /^\//) print $i }' \
+        | grep -v ':' \
+        | grep -Ev '/(ld-linux|libc|libdl|libm|libpthread|libresolv|librt|libutil|libnsl|libanl|libBrokenLocale|libSegFault|libthread_db)\.so' \
+        | sort -u \
+        | xargs -r -I '{}' cp -v '{}' /opt/windninja-runtime/lib/
+
+
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV WINDNINJA_DATA=/opt/windninja/data
+ENV WINDNINJA_CLI=WindNinja_cli
+ENV GDAL_DATA=/opt/windninja/share/gdal
+ENV PROJ_LIB=/opt/windninja/share/proj
+ENV PROJ_DATA=/opt/windninja/share/proj
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        gdal-bin \
+        libgdal-dev \
+        libgeos-dev \
+        libproj-dev \
+        libspatialindex-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=windninja-builder /opt/windninja-runtime /opt/windninja
+
+RUN printf '#!/bin/sh\nLD_LIBRARY_PATH=/opt/windninja/lib exec /opt/windninja/bin/WindNinja_cli "$@"\n' > /usr/local/bin/WindNinja_cli \
+    && printf '#!/bin/sh\nLD_LIBRARY_PATH=/opt/windninja/lib exec /opt/windninja/bin/fetch_dem "$@"\n' > /usr/local/bin/fetch_dem \
+    && chmod +x /usr/local/bin/WindNinja_cli /usr/local/bin/fetch_dem \
+    && command -v WindNinja_cli \
+    && command -v fetch_dem
+
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
+    && pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

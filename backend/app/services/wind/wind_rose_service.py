@@ -146,13 +146,6 @@ def plot_wind_rose(
 def fit_weibull_2p(
     ws: np.ndarray | Sequence[float],
 ):
-    """
-    fit_weibull_2p.
-
-    Notes
-    -----
-    Auto-generated docstring. Please refine parameter/return descriptions if needed.
-    """
     ws = np.asarray(ws, dtype=float)
     ws = ws[np.isfinite(ws) & (ws > 0)]
     if ws.size < 10:

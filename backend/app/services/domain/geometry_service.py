@@ -20,9 +20,6 @@ def iter_coords(geom):
 
     if gt == "Polygon":
         coords = list(geom.exterior.coords)
-        # Si quieres incluir agujeros interiores:
-        # for ring in geom.interiors:
-        #     coords.extend(list(ring.coords))
         return coords
 
     if gt.startswith("Multi") or gt == "GeometryCollection":
@@ -35,13 +32,6 @@ def iter_coords(geom):
 
 
 def add_matches(arr, mask, label, pts, labels):
-    """
-    add_matches.
-
-    Notes
-    -----
-    Auto-generated docstring. Please refine parameter/return descriptions if needed.
-    """
     for fid, vidx, x, y in arr[mask]:
         pts.append(Point(float(x), float(y)))
         labels.append((label, int(fid), int(vidx), float(x), float(y)))
@@ -93,9 +83,6 @@ def preprocess_geometry(cfg):
     # --- Exportar a Shapefile ---
     out_gdf.to_file(cfg.out_shp, driver="ESRI Shapefile", encoding="UTF-8")
 
-    print(f"Exportado: {cfg.out_shp}  (n={len(out_gdf)} puntos)")
-    print("BBox:", (minx, miny, maxx, maxy))
-
     # rows: lista de tuplas (fid, vidx, x, y)
     arr = np.array(rows, dtype=object)
     xs = arr[:, 2].astype(float)
@@ -120,7 +107,6 @@ def preprocess_geometry(cfg):
     )
 
     rect_gdf.to_file(cfg.out_rec_shp, driver="ESRI Shapefile", encoding="UTF-8")
-    print(f"Exportado: {cfg.out_rec_shp}")
 
     w = maxx - minx
     h = maxy - miny
@@ -157,7 +143,6 @@ def preprocess_geometry(cfg):
     )
 
     out.to_file(cfg.out_rec_exp_shp, driver="ESRI Shapefile", encoding="UTF-8")
-    print(f"Exportado: {cfg.out_rec_exp_shp}")
 
     return {
         "gdf": gdf,

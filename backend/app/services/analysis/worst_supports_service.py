@@ -18,7 +18,6 @@ def list_windninja_pairs(folder: str | Path):
         raise FileNotFoundError(f"No existe la carpeta OUT_WN_REN: {folder}")
 
     files = [p for p in folder.iterdir() if p.is_file()]
-    print("OUT_WN_REN files:", [p.name for p in files])
 
     vel = {}
     ang = {}
@@ -47,12 +46,6 @@ def list_windninja_pairs(folder: str | Path):
                 prj[m_prj.group("base")] = p
 
     bases = sorted(set(vel) & set(ang) & set(prj))
-    if not bases:
-        print("No paired windninja files found.")
-        print("vel keys:", sorted(vel.keys()))
-        print("ang keys:", sorted(ang.keys()))
-        print("prj keys:", sorted(prj.keys()))
-
     return [(b, vel[b], ang[b], prj[b]) for b in bases]
 
 
@@ -111,6 +104,27 @@ def _find_direction_field(columns):
             if cand in col:
                 return columns[i]
 
+    return None
+
+
+def _value_from_row(row, candidates):
+    for candidate in candidates:
+        value = row.get(candidate)
+        if value is not None and not pd.isna(value):
+            return value
+    return None
+
+
+def _support_label(value, fallback_order):
+    if value is not None:
+        text = str(value).strip()
+        if text:
+            return text
+    if fallback_order is not None and not pd.isna(fallback_order):
+        try:
+            return f"AP-{int(float(fallback_order))}"
+        except (TypeError, ValueError):
+            return str(fallback_order)
     return None
 
 
@@ -204,12 +218,6 @@ def compute_worst_supports(cfg, top_n: int = 4) -> dict[str, Any]:
     if cfg.out_wn_ren is None or not Path(cfg.out_wn_ren).exists():
         raise FileNotFoundError(f"No existe carpeta OUT_WN_REN: {cfg.out_wn_ren}")
 
-    print("worst_supports case_path:", cfg.general_path)
-    print("cfg.out_apoyos_shp:", cfg.out_apoyos_shp, "exists:", Path(cfg.out_apoyos_shp).exists() if cfg.out_apoyos_shp else False)
-    print("cfg.out_vanos_shp:", out_vanos, "exists:", out_vanos.exists())
-    print("cfg.out_wn_ren:", cfg.out_wn_ren, "exists:", Path(cfg.out_wn_ren).exists())
-    print("cfg.out_v_perp_min_shp:", cfg.out_v_perp_min_shp)
-
     pairs = list_windninja_pairs(cfg.out_wn_ren)
 
     if not pairs:
@@ -272,10 +280,24 @@ def compute_worst_supports(cfg, top_n: int = 4) -> dict[str, Any]:
 
         for i in range(len(gdf)):
             row = gdf.iloc[i]
+            from_order = _value_from_row(row, ["from_idx", "from_order", "from_ord", "from", "from_ap"])
+            to_order = _value_from_row(row, ["to_idx", "to_order", "to_ord", "to", "to_ap"])
+            from_support = _support_label(_value_from_row(row, ["from_ap", "from_support", "from_supp"]), from_order)
+            to_support = _support_label(_value_from_row(row, ["to_ap", "to_support", "to_supp"]), to_order)
+            span_label = (
+                f"{from_support} -> {to_support}"
+                if from_support is not None and to_support is not None
+                else row.get("MAT", str(i))
+            )
             records.append({
                 "idx": i,
                 "MAT": row.get("MAT", str(i)),
                 "case": case_name,
+                "from_ap": from_support,
+                "to_ap": to_support,
+                "from_order": from_order,
+                "to_order": to_order,
+                "span_label": span_label,
                 "direccion": float(direction_values[i]) if np.isfinite(direction_values[i]) else np.nan,
                 "wind_speed": float(vel_vals[i]) if np.isfinite(vel_vals[i]) else np.nan,
                 "wind_dir": float(ang_vals[i]) if np.isfinite(ang_vals[i]) else np.nan,

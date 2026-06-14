@@ -9,14 +9,18 @@ export type DrawMode = 'none' | 'support';
 export class MapContextService {
   private casePathSubject = new BehaviorSubject<string>('');
   private selectedLayerSubject = new BehaviorSubject<string>('');
+  private layerReloadTokenSubject = new BehaviorSubject<number>(0);
   private drawModeSubject = new BehaviorSubject<DrawMode>('none');
   private clearDrawTokenSubject = new BehaviorSubject<number>(0);
+  private layerRefreshTokenSubject = new BehaviorSubject<number>(0);
   private drawnGeometriesSubject = new BehaviorSubject<Record<string, any>[]>([]);
 
   casePath$ = this.casePathSubject.asObservable();
   selectedLayer$ = this.selectedLayerSubject.asObservable();
+  layerReloadToken$ = this.layerReloadTokenSubject.asObservable();
   drawMode$ = this.drawModeSubject.asObservable();
   clearDrawToken$ = this.clearDrawTokenSubject.asObservable();
+  layerRefreshToken$ = this.layerRefreshTokenSubject.asObservable();
   drawnGeometries$ = this.drawnGeometriesSubject.asObservable();
 
   constructor() {}
@@ -29,12 +33,20 @@ export class MapContextService {
     this.selectedLayerSubject.next(layer);
   }
 
+  reloadSelectedLayer(): void {
+    this.layerReloadTokenSubject.next(this.layerReloadTokenSubject.value + 1);
+  }
+
   setDrawMode(mode: DrawMode): void {
     this.drawModeSubject.next(mode);
   }
 
   setClearDrawToken(token: number): void {
     this.clearDrawTokenSubject.next(token);
+  }
+
+  refreshSelectedLayer(): void {
+    this.layerRefreshTokenSubject.next(this.layerRefreshTokenSubject.value + 1);
   }
 
   setDrawnGeometries(geometries: Record<string, any>[]): void {

@@ -5,7 +5,10 @@ from pathlib import Path
 from typing import Any, Optional
 
 import geopandas as gpd
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
 
 from app.core.paths import join_base
 
@@ -242,7 +245,7 @@ class Config:
             out_weather_point_file=_ensure_path(base, "Weather_Input_Data/WN_input_Point_1.csv"),
 
             out_perfil_file=_ensure_path(base, f"Calculos/{line}_perfil.png"),
-            out_vanos_shp=_ensure_path(base, f"Calculos/{line}_vanos.shp"),
+            out_vanos_shp=_ensure_path(base, "SHP/vanos.shp"),
 
             out_wn=_ensure_path(base, "OUT_WN"),
             out_wn_ren=_ensure_path(base, "OUT_WN_REN"),

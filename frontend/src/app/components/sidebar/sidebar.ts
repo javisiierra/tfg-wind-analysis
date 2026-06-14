@@ -1,80 +1,43 @@
-import { Component, EventEmitter, Input, Output, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { CommonModule, JsonPipe } from '@angular/common';
+import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { DrawMode } from '../../app';
+import { DrawMode } from '../../services/map-context.service';
+import { CaseStatusResponse } from '../../services/dashboard.service';
+import { ExecutionUiState } from '../../models/execution-ui-state';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-sidebar',
   standalone: true,
-  imports: [CommonModule, JsonPipe, FormsModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './sidebar.html',
   styleUrl: './sidebar.css'
 })
-export class Sidebar implements OnChanges {
+export class Sidebar {
   @Input() casePath: string = '';
+  @Input() caseStatus: CaseStatusResponse | null = null;
+  @Input() isCaseStatusLoading = false;
+  @Input() isExecutionRunning = false;
   @Input() drawnGeometries: Record<string, any>[] = [];
 
   @Output() layerSelected = new EventEmitter<string>();
   @Output() drawModeChange = new EventEmitter<DrawMode>();
   @Output() clearDrawing = new EventEmitter<void>();
   @Output() caseCreated = new EventEmitter<string>();
+  @Output() actionCompletedOk = new EventEmitter<string | undefined>();
+  @Output() executionUiStateChange = new EventEmitter<ExecutionUiState>();
 
   result: any = null;
   error: any = null;
+  userMessage = '';
   loading = false;
   currentAction = '';
 
   caseName = '';
-
-  hasDomain = false;
-  hasWeatherData = false;
-  hasDem = false;
-  hasApoyos = false;
-  hasVanos = false;
-  readyForWindNinja = false;
+  private readonly apiUrl = environment.apiUrl;
 
   constructor(private http: HttpClient) {}
-
-  ngOnChanges(changes: SimpleChanges) {
-    if (changes['casePath']) {
-      this.refreshCaseStatus();
-    }
-  }
-
-  refreshCaseStatus() {
-    if (!this.casePath) {
-      this.hasDomain = false;
-      this.hasWeatherData = false;
-      this.hasDem = false;
-      this.hasApoyos = false;
-      this.hasVanos = false;
-      this.readyForWindNinja = false;
-      return;
-    }
-
-    this.http.post<any>('http://127.0.0.1:8000/api/v1/case/status', {
-      case_path: this.casePath
-    }).subscribe({
-      next: (res) => {
-        this.hasDomain = !!res.has_domain;
-        this.hasWeatherData = !!res.has_weather;
-        this.hasDem = !!res.has_dem;
-        this.hasApoyos = !!res.has_apoyos;
-        this.hasVanos = !!res.has_vanos;
-        this.readyForWindNinja = !!res.ready_for_windninja;
-      },
-      error: (err) => {
-        console.error('Error consultando estado del caso:', err);
-        this.hasDomain = false;
-        this.hasWeatherData = false;
-        this.hasDem = false;
-        this.hasApoyos = false;
-        this.hasVanos = false;
-        this.readyForWindNinja = false;
-      }
-    });
-  }
 
   startSupportDraw() {
     this.drawModeChange.emit('support');
@@ -93,18 +56,22 @@ export class Sidebar implements OnChanges {
 
     if (!trimmedName && !this.casePath) {
       this.error = { message: 'Debes indicar un case_name o tener un caso activo.' };
+      this.emitErrorState(this.error.message);
       return;
     }
 
     if (!this.drawnGeometries.length) {
       this.error = { message: 'Debes dibujar al menos un apoyo antes de guardar.' };
+      this.emitErrorState(this.error.message);
       return;
     }
 
     this.loading = true;
     this.result = null;
     this.error = null;
+    this.userMessage = '';
     this.currentAction = 'Guardar apoyos';
+    this.emitRunningState('Guardar apoyos', 'Persistiendo geometria y actualizando el caso');
 
     try {
       let lastResponse: any = null;
@@ -122,7 +89,7 @@ export class Sidebar implements OnChanges {
         }
 
         lastResponse = await this.http.post(
-          'http://127.0.0.1:8000/api/v1/supports/create',
+          `${this.apiUrl}/supports/create`,
           payload
         ).toPromise();
       }
@@ -135,29 +102,28 @@ export class Sidebar implements OnChanges {
 
       if (lastResponse?.case_path) {
         this.caseCreated.emit(lastResponse.case_path);
+      } else {
+        this.actionCompletedOk.emit(this.casePath || undefined);
       }
 
       this.layerSelected.emit('apoyos');
       this.clearDrawing.emit();
 
-      setTimeout(() => {
-        this.refreshCaseStatus();
-      }, 100);
-
       this.loading = false;
+      this.emitSuccessState();
     } catch (err) {
       this.error = err;
       this.loading = false;
-      this.refreshCaseStatus();
+      this.emitErrorState(this.getErrorDetail(err, 'No se pudieron guardar los apoyos.'));
     }
   }
 
-  runGenerateDomainFromSupports() {
-    this.callDomain('/generate-from-supports', 'Generar dominio desde apoyos');
+  runGenerateVanosFromSupports() {
+    this.callVanos('/generate-from-supports', 'Generar vanos desde apoyos');
   }
 
-  runGenerateDem() {
-    this.callDomain('/generate-dem', 'Generar DEM');
+  runPrepareDomainAndTerrain() {
+    this.callDomain('/prepare-dem', 'Preparar dominio y terreno');
   }
 
   runGenerateWeather() {
@@ -166,18 +132,6 @@ export class Sidebar implements OnChanges {
 
   runWindNinja() {
     this.call('/run-windninja', 'WindNinja');
-  }
-
-  runRename() {
-    this.call('/run-rename', 'Rename');
-  }
-
-  runWindRose() {
-    this.call('/run-wind-rose', 'Wind Rose');
-  }
-
-  runWorstSupports() {
-    this.callAnalysis('/worst-supports', 'Peores apoyos');
   }
 
   showApoyos() {
@@ -200,20 +154,24 @@ export class Sidebar implements OnChanges {
     this.loading = true;
     this.result = null;
     this.error = null;
+    this.userMessage = '';
     this.currentAction = action;
+    this.emitRunningState(action, this.detailForAction(action));
 
-    this.http.post(`http://127.0.0.1:8000/api/v1/pipeline${endpoint}`, {
+    this.http.post(`${this.apiUrl}/pipeline${endpoint}`, {
       case_path: this.casePath
     }).subscribe({
       next: (res) => {
         this.result = res;
+        this.userMessage = this.buildPipelineUserMessage(endpoint, res);
         this.loading = false;
-        this.refreshCaseStatus();
+        this.emitSuccessState(this.userMessage || undefined);
+        this.actionCompletedOk.emit(this.casePath);
       },
       error: (err) => {
         this.error = err;
         this.loading = false;
-        this.refreshCaseStatus();
+        this.emitErrorState(this.getErrorDetail(err, `Error ejecutando ${action}.`));
       }
     });
   }
@@ -222,70 +180,126 @@ export class Sidebar implements OnChanges {
     this.loading = true;
     this.result = null;
     this.error = null;
+    this.userMessage = '';
     this.currentAction = action;
+    this.emitRunningState(action, this.detailForAction(action));
 
-    this.http.post(`http://127.0.0.1:8000/api/v1/domain${endpoint}`, {
+    this.http.post(`${this.apiUrl}/domain${endpoint}`, {
       case_path: this.casePath
     }).subscribe({
       next: (res) => {
         this.result = res;
         this.loading = false;
-        this.refreshCaseStatus();
+        this.emitSuccessState();
+        this.actionCompletedOk.emit(this.casePath);
 
-        if (endpoint === '/generate-dem') {
+        if (endpoint === '/generate-dem' || endpoint === '/prepare-dem') {
           this.layerSelected.emit('dominio');
         }
       },
       error: (err) => {
         this.error = err;
         this.loading = false;
-        this.refreshCaseStatus();
+        this.emitErrorState(this.getErrorDetail(err, `Error ejecutando ${action}.`));
       }
     });
   }
 
-  private callSupports(endpoint: string, action: string) {
+  private callVanos(endpoint: string, action: string) {
     this.loading = true;
     this.result = null;
     this.error = null;
     this.currentAction = action;
+    this.emitRunningState(action, this.detailForAction(action));
 
-    this.http.post(`http://127.0.0.1:8000/api/v1/supports${endpoint}`, {
+    this.http.post(`${this.apiUrl}/vanos${endpoint}`, {
       case_path: this.casePath
     }).subscribe({
       next: (res) => {
         this.result = res;
         this.loading = false;
-        this.refreshCaseStatus();
-        this.layerSelected.emit('dominio');
+        this.emitSuccessState();
+        this.actionCompletedOk.emit(this.casePath);
+        this.layerSelected.emit('vanos');
       },
       error: (err) => {
         this.error = err;
         this.loading = false;
-        this.refreshCaseStatus();
+        this.emitErrorState(this.getErrorDetail(err, `Error ejecutando ${action}.`));
       }
     });
   }
 
-  private callAnalysis(endpoint: string, action: string) {
-    this.loading = true;
-    this.result = null;
-    this.error = null;
-    this.currentAction = action;
-
-    this.http.post(`http://127.0.0.1:8000/api/v1/analysis${endpoint}`, {
-      case_path: this.casePath
-    }).subscribe({
-      next: (res) => {
-        this.result = res;
-        this.loading = false;
-        this.refreshCaseStatus();
-      },
-      error: (err) => {
-        this.error = err;
-        this.loading = false;
-        this.refreshCaseStatus();
-      }
+  private emitRunningState(action: string, detail?: string): void {
+    this.executionUiStateChange.emit({
+      status: 'running',
+      title: `Ejecutando ${action}...`,
+      stage: action,
+      detail
     });
+  }
+
+  private emitSuccessState(detail = 'Última ejecución completada correctamente'): void {
+    this.executionUiStateChange.emit({
+      status: 'success',
+      title: 'Listo',
+      detail
+    });
+  }
+
+  private emitErrorState(detail: string): void {
+    this.executionUiStateChange.emit({
+      status: 'error',
+      title: 'Error',
+      detail
+    });
+  }
+
+  private getErrorDetail(error: any, fallback: string): string {
+    const detail = error?.error?.detail;
+    if (typeof detail === 'string') {
+      return detail;
+    }
+    if (detail?.message) {
+      const cause = detail.cause?.error || detail.cause?.message || detail.cause;
+      return typeof cause === 'string' ? `${detail.message} ${cause}` : detail.message;
+    }
+    return error?.message || fallback;
+  }
+
+  private detailForAction(action: string): string {
+    const details: Record<string, string> = {
+      'Guardar apoyos': 'Persistiendo geometria y actualizando el caso',
+      'Generar vanos desde apoyos': 'Calculando vanos entre apoyos',
+      'Preparar dominio y terreno': 'Comprobando el dominio y preparando el relieve',
+      'Generar meteorología': 'Generando ficheros meteorologicos para WindNinja',
+      'WindNinja': 'Ejecutando simulacion y postprocesos'
+    };
+
+    return details[action] || `Ejecutando ${action}`;
+  }
+
+  private buildPipelineUserMessage(endpoint: string, res: any): string {
+    if (endpoint !== '/run-windninja') {
+      return '';
+    }
+
+    if (res?.rename_success && res?.worst_supports_success && res?.wind_rose_success) {
+      return 'WindNinja finalizado. Salidas renombradas, vanos críticos y rosa de vientos generados.';
+    }
+
+    if (res?.wind_rose_warning || res?.wind_rose_success === false) {
+      return 'WindNinja finalizado, pero no se pudo generar la rosa de vientos.';
+    }
+
+    if (
+      res?.postprocess_warnings?.length ||
+      res?.rename_warning ||
+      res?.worst_supports_warning
+    ) {
+      return 'WindNinja finalizado, pero hubo avisos en el postproceso.';
+    }
+
+    return 'WindNinja finalizado.';
   }
 }

@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import logging
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-import geopandas as gpd
 import pandas as pd
-from shapely.geometry import Point, box, shape
+from shapely.geometry import shape
 
+from app.services.domain.generation_service import DomainGenerationError, DomainGenerationService
 from app.services.weather.era5_service import (
     analyze_wind_for_dashboard,
     download_era5_for_bbox_year,
@@ -30,6 +30,7 @@ class DashboardDataError(Exception):
 class WeatherDashboardService:
     start_year: int = 2000
     end_year: int = 2099
+    domain_generation_service: DomainGenerationService = field(default_factory=DomainGenerationService)
 
     def _validate_year(self, year: int) -> None:
         if not isinstance(year, int) or year < self.start_year or year > self.end_year:
@@ -40,226 +41,10 @@ class WeatherDashboardService:
             )
 
     def _read_case_domain_bounds(self, base: Path) -> tuple[list[float], str] | None:
-        candidates = [
-            base / "SHP" / "dominio.geojson",
-            base / "SHP" / "dominio.shp",
-        ]
-
-        for candidate in candidates:
-            if not candidate.exists():
-                continue
-
-            try:
-                gdf = gpd.read_file(candidate)
-            except Exception as exc:
-                raise DashboardDataError(
-                    f"Could not read domain file: {candidate.name}",
-                    "INVALID_CASE_DOMAIN",
-                    422,
-                ) from exc
-
-            if gdf.empty or not gdf.geometry.notna().any():
-                continue
-
-            gdf_wgs84 = gdf.to_crs(epsg=4326) if gdf.crs is not None else gdf
-            min_lon, min_lat, max_lon, max_lat = map(float, gdf_wgs84.total_bounds)
-
-            if min_lon >= max_lon or min_lat >= max_lat:
-                continue
-
-            return [min_lon, min_lat, max_lon, max_lat], candidate.name
-
-        return None
-
-    def _read_vector_bounds(self, candidate: Path, default_crs: int = 25830) -> tuple[float, float, float, float, Any] | None:
-        if not candidate.exists():
-            return None
-
         try:
-            gdf = gpd.read_file(candidate)
-        except Exception:
-            logger.exception("Could not read vector file", extra={"path": str(candidate)})
-            return None
-
-        if gdf.empty or not gdf.geometry.notna().any():
-            return None
-
-        if gdf.crs is None:
-            gdf = gdf.set_crs(epsg=default_crs)
-
-        minx, miny, maxx, maxy = map(float, gdf.total_bounds)
-
-        if minx >= maxx or miny >= maxy:
-            return None
-
-        return minx, miny, maxx, maxy, gdf.crs
-
-    def _read_supports_excel_bounds(self, base: Path) -> tuple[float, float, float, float, Any] | None:
-        apoyos_dir = base / "Apoyos"
-        if not apoyos_dir.exists():
-            return None
-
-        excel_candidates = [
-            *apoyos_dir.glob("*.xlsx"),
-            *apoyos_dir.glob("*.xls"),
-        ]
-
-        for candidate in excel_candidates:
-            try:
-                df = pd.read_excel(candidate)
-            except Exception:
-                logger.exception("Could not read supports Excel", extra={"path": str(candidate)})
-                continue
-
-            if df.empty:
-                continue
-
-            normalized_cols = {str(col).strip().lower(): col for col in df.columns}
-
-            x_col = (
-                normalized_cols.get("x")
-                or normalized_cols.get("utm_x")
-                or normalized_cols.get("este")
-                or normalized_cols.get("easting")
-                or normalized_cols.get("coord_x")
-                or normalized_cols.get("coordenada_x")
-            )
-            y_col = (
-                normalized_cols.get("y")
-                or normalized_cols.get("utm_y")
-                or normalized_cols.get("norte")
-                or normalized_cols.get("northing")
-                or normalized_cols.get("coord_y")
-                or normalized_cols.get("coordenada_y")
-            )
-
-            lon_col = (
-                normalized_cols.get("lon")
-                or normalized_cols.get("longitud")
-                or normalized_cols.get("longitude")
-            )
-            lat_col = (
-                normalized_cols.get("lat")
-                or normalized_cols.get("latitud")
-                or normalized_cols.get("latitude")
-            )
-
-            if x_col and y_col:
-                coords = df[[x_col, y_col]].dropna()
-                if coords.empty:
-                    continue
-
-                coords[x_col] = pd.to_numeric(coords[x_col], errors="coerce")
-                coords[y_col] = pd.to_numeric(coords[y_col], errors="coerce")
-                coords = coords.dropna()
-
-                if coords.empty:
-                    continue
-
-                geometry = [Point(xy) for xy in zip(coords[x_col], coords[y_col])]
-                gdf = gpd.GeoDataFrame(coords, geometry=geometry, crs="EPSG:25830")
-
-                minx, miny, maxx, maxy = map(float, gdf.total_bounds)
-                if minx < maxx and miny < maxy:
-                    return minx, miny, maxx, maxy, gdf.crs
-
-            if lon_col and lat_col:
-                coords = df[[lon_col, lat_col]].dropna()
-                if coords.empty:
-                    continue
-
-                coords[lon_col] = pd.to_numeric(coords[lon_col], errors="coerce")
-                coords[lat_col] = pd.to_numeric(coords[lat_col], errors="coerce")
-                coords = coords.dropna()
-
-                if coords.empty:
-                    continue
-
-                geometry = [Point(xy) for xy in zip(coords[lon_col], coords[lat_col])]
-                gdf = gpd.GeoDataFrame(coords, geometry=geometry, crs="EPSG:4326")
-
-                minx, miny, maxx, maxy = map(float, gdf.total_bounds)
-                if minx < maxx and miny < maxy:
-                    return minx, miny, maxx, maxy, gdf.crs
-
-        return None
-
-    def _read_case_supports_bounds(self, base: Path) -> tuple[float, float, float, float, Any] | None:
-        candidates = [
-            base / "Apoyos" / "apoyos.shp",
-            base / "Apoyos" / "apoyos.geojson",
-            base / "SHP" / "apoyos.shp",
-            base / "SHP" / "apoyos.geojson",
-        ]
-
-        for candidate in candidates:
-            bounds = self._read_vector_bounds(candidate)
-            if bounds is not None:
-                return bounds
-
-        return self._read_supports_excel_bounds(base)
-
-    def _read_case_trace_bounds(self, base: Path) -> tuple[float, float, float, float, Any] | None:
-        candidates = [
-            base / "SHP" / "traza.shp",
-            base / "SHP" / "traza.geojson",
-            base / f"{base.name}.shp",
-            base / f"{base.name}.geojson",
-        ]
-
-        for candidate in candidates:
-            bounds = self._read_vector_bounds(candidate)
-            if bounds is not None:
-                return bounds
-
-        return None
-
-    def _generate_case_domain(self, base: Path) -> bool:
-        source_bounds = self._read_case_trace_bounds(base)
-
-        if source_bounds is None:
-            source_bounds = self._read_case_supports_bounds(base)
-
-        if source_bounds is None:
-            return False
-
-        minx, miny, maxx, maxy, crs = source_bounds
-
-        width = maxx - minx
-        height = maxy - miny
-        buffer_value = max(100.0, max(width, height) * 0.10)
-
-        domain_polygon = box(
-            minx - buffer_value,
-            miny - buffer_value,
-            maxx + buffer_value,
-            maxy + buffer_value,
-        )
-
-        domain_gdf = gpd.GeoDataFrame(
-            {"tipo": ["dominio"]},
-            geometry=[domain_polygon],
-            crs=crs,
-        )
-
-        shp_path = base / "SHP" / "dominio.shp"
-        geojson_path = base / "SHP" / "dominio.geojson"
-
-        shp_path.parent.mkdir(parents=True, exist_ok=True)
-
-        domain_gdf.to_file(shp_path, driver="ESRI Shapefile", encoding="UTF-8")
-        domain_gdf.to_crs(epsg=4326).to_file(geojson_path, driver="GeoJSON", encoding="UTF-8")
-
-        logger.info(
-            "Dashboard domain generated automatically",
-            extra={
-                "case_path": str(base),
-                "domain_shp": str(shp_path),
-                "domain_geojson": str(geojson_path),
-            },
-        )
-
-        return True
+            return self.domain_generation_service.read_domain_bounds_wgs84(base)
+        except DomainGenerationError as exc:
+            raise DashboardDataError(str(exc), "INVALID_CASE_DOMAIN", 422) from exc
 
     def _resolve_domain_descriptor(self, domain: Any) -> dict[str, Any]:
         descriptor = domain.model_dump() if hasattr(domain, "model_dump") else dict(domain or {})
@@ -303,17 +88,9 @@ class WeatherDashboardService:
             domain_bounds = self._read_case_domain_bounds(base)
 
             if domain_bounds is None:
-                generated = self._generate_case_domain(base)
-                logger.info(
-                    "Dashboard tried to generate missing domain",
-                    extra={"case_path": str(base), "generated": generated},
-                )
-                domain_bounds = self._read_case_domain_bounds(base)
-
-            if domain_bounds is None:
                 raise DashboardDataError(
-                    "No existe dominio en SHP/dominio.geojson o SHP/dominio.shp, y no se pudo generar automáticamente desde SHP/traza.shp, SHP/traza.geojson, Apoyos/apoyos.shp, Apoyos/apoyos.geojson ni desde Excel en Apoyos.",
-                    "INVALID_CASE_DOMAIN",
+                    "No existe dominio en SHP/dominio.geojson o SHP/dominio.shp. Genérelo mediante el flujo oficial de dominio.",
+                    "DOMAIN_MISSING",
                     400,
                 )
 

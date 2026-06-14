@@ -10,22 +10,22 @@
 
   <div class="case-control">
     <input
-      [(ngModel)]="casePath"
+      [ngModel]="casePath"
+      (ngModelChange)="onCasePathInputChange($event)"
       placeholder="Ruta de la carpeta del caso"
       title="Ruta de la carpeta del caso"
     />
 
-    <button class="btn secondary" (click)="selectFolder()">
+    <button class="btn secondary" (click)="selectFolder()" [disabled]="loading || isExecutionRunning">
       Seleccionar carpeta
     </button>
 
-    <button class="btn primary" (click)="prepareCase()">
-      Preparar caso
+    <button class="btn primary" (click)="prepareCase()" [disabled]="loading || isExecutionRunning || !casePath">
+      Importar carpeta
     </button>
-  </div>
 
-  <div class="system-status" [class.has-error]="error">
-    <span class="status-dot"></span>
-    <span>{{ error ? 'Error' : statusText ? statusText : 'Listo' }}</span>
+    <button class="btn primary" (click)="executePreparationPipeline()" [disabled]="loading || isExecutionRunning || !casePath">
+      Ejecutar preparación
+    </button>
   </div>
 </div>

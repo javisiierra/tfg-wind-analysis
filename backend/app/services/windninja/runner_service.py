@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -13,7 +14,26 @@ from app.services.windninja.command_builder import (
 def run_windninja(cfg):
     base = Path(cfg.general_path)
 
-    wind_ninja_exe = r"C:\WindNinja\WindNinja-3.12.1\bin\WindNinja_cli"
+    wind_ninja_exe = os.getenv(
+        "WINDNINJA_CLI",
+        r"C:\WindNinja\WindNinja-3.12.1\bin\WindNinja_cli",
+    )
+    wind_ninja_path = Path(wind_ninja_exe)
+
+    if wind_ninja_path.is_absolute():
+        wind_ninja_available = wind_ninja_path.exists()
+    else:
+        wind_ninja_available = shutil.which(wind_ninja_exe) is not None
+
+    if not wind_ninja_available:
+        raise FileNotFoundError(
+            "No se encontró WindNinja_cli dentro del entorno donde corre el backend. "
+            f"Valor actual de WINDNINJA_CLI: {wind_ninja_exe}. "
+            "Si estás usando Docker, la instalación de Windows no está disponible dentro "
+            "del contenedor Linux: instala WindNinja para Linux en la imagen backend o usa "
+            "una imagen que ya incluya el ejecutable."
+        )
+
     wx_station_filename = join_base(base, cfg.in_weather_file)
     elevation_file = join_base(base, cfg.out_mdt_tif)
     path_output = join_base(base, cfg.out_wn)
