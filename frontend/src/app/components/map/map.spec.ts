@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { SimpleChange } from '@angular/core';
 import Feature from 'ol/Feature';
 import Point from 'ol/geom/Point';
 import VectorLayer from 'ol/layer/Vector';
@@ -6,10 +7,16 @@ import VectorSource from 'ol/source/Vector';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MapComponent } from './map';
+import { GisLayerService, MapLayerSet } from '../../services/gis-layer.service';
+import { MapStyleService } from '../../services/map-style.service';
+import { MapTooltipService } from '../../services/map-tooltip.service';
 
 describe('MapComponent', () => {
   let component: MapComponent;
   let fixture: ComponentFixture<MapComponent>;
+  let gisLayers: GisLayerService;
+  let styles: MapStyleService;
+  let tooltips: MapTooltipService;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
@@ -18,15 +25,44 @@ describe('MapComponent', () => {
 
     fixture = TestBed.createComponent(MapComponent);
     component = fixture.componentInstance;
+    gisLayers = TestBed.inject(GisLayerService);
+    styles = TestBed.inject(MapStyleService);
+    tooltips = TestBed.inject(MapTooltipService);
   });
 
   it('should create', () => {
     expect(component).toBeTruthy();
   });
 
+  it('should delegate selected layer loading when inputs change', () => {
+    component.displayLayer = new VectorLayer({ source: new VectorSource() });
+    component.selectedLayer = 'vanos';
+    component.casePath = 'C:/case';
+    const loadSpy = vi.spyOn(gisLayers, 'loadSelectedLayer').mockImplementation(() => {});
+
+    component.ngOnChanges({
+      selectedLayer: new SimpleChange('', 'vanos', false)
+    });
+
+    expect(loadSpy).toHaveBeenCalledWith(
+      'vanos',
+      'C:/case',
+      expect.objectContaining({ displayLayer: component.displayLayer }),
+      expect.any(Function)
+    );
+  });
+
   it('should not fail when unsupported layer is requested', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    component['loadLayerIntoSource']('invalid', '/tmp', undefined, true);
+    await gisLayers.loadLayerIntoSource(
+      'invalid',
+      '/tmp',
+      undefined,
+      true,
+      createLayerSet(),
+      () => {}
+    );
+
     expect(warnSpy).toHaveBeenCalled();
     warnSpy.mockRestore();
   });
@@ -35,18 +71,16 @@ describe('MapComponent', () => {
     const feature = new Feature({
       geometry: new Point([0, 0]),
       global_support_id: 'AP-6',
-      direccion: 250.74085312139727,
-      w_speed: 8.567,
-      vperp_min: 1.234,
-      alpha: 12.345,
+      direction_deg: 250.74085312139727,
+      wind_speed: 8.567,
+      critical_metric: 1.234,
+      angle_relative: 12.345,
       from_support: 'AP-5',
       to_support: 'AP-6',
       critical_reason: 'Menor componente perpendicular sobre el vano entre escenarios WindNinja',
     });
 
-    component['currentTooltipLayer'] = 'worst';
-
-    const html = component['buildTooltipHtml'](feature);
+    const html = tooltips.buildTooltipHtml(feature, 'worst');
 
     expect(html).toContain('Vano cr&iacute;tico');
     expect(html).toContain('Tramo: AP-5 &rarr; AP-6');
@@ -63,16 +97,14 @@ describe('MapComponent', () => {
       id: 'AP-6',
       support_order: 6,
       support_total: 10,
-      w_speed: 8.567,
-      vperp_min: 1.234,
-      alpha: 12.345,
+      wind_speed: 8.567,
+      critical_metric: 1.234,
+      angle_relative: 12.345,
       associated_span_label: 'AP-5 &rarr; AP-6',
       critical_reason: 'Menor componente perpendicular sobre el vano entre escenarios WindNinja',
     });
 
-    component['currentTooltipLayer'] = 'apoyos';
-
-    const html = component['buildTooltipHtml'](feature);
+    const html = tooltips.buildTooltipHtml(feature, 'apoyos');
 
     expect(html).toContain('Identificador: AP-6');
     expect(html).toContain('Orden: 6');
@@ -80,10 +112,11 @@ describe('MapComponent', () => {
     expect(html).toContain('Velocidad viento: 8.57 m/s');
     expect(html).toContain('Componente perpendicular m&iacute;nima: 1.23 m/s');
     expect(html).toContain('&Aacute;ngulo relativo: 12.35&deg;');
+    expect(html).not.toContain('Motivo:');
   });
 
   it('should keep critical spans above supports by zIndex', () => {
-    expect(component['getLayerZIndex']('worst')).toBeGreaterThan(component['getLayerZIndex']('apoyos'));
+    expect(styles.getLayerZIndex('worst')).toBeGreaterThan(styles.getLayerZIndex('apoyos'));
     (globalThis as any).ResizeObserver = class {
       observe() {}
       unobserve() {}
@@ -96,11 +129,7 @@ describe('MapComponent', () => {
   });
 
   it('should render critical spans with auxiliary supports and vanos when worst layer is selected', async () => {
-    component.vanosLayer = new VectorLayer({ source: new VectorSource() });
-    component.displayLayer = new VectorLayer({ source: new VectorSource() });
-    component.criticalVanosAuxLayer = new VectorLayer({ source: new VectorSource() });
-    component.criticalSupportsAuxLayer = new VectorLayer({ source: new VectorSource() });
-    component.criticalSpansLayer = new VectorLayer({ source: new VectorSource() });
+    const layers = createLayerSet();
 
     const apoyos = {
       type: 'FeatureCollection',
@@ -133,7 +162,7 @@ describe('MapComponent', () => {
       ]
     };
 
-    vi.spyOn(component as any, 'fetchLayerData').mockImplementation((layerName: unknown) => {
+    vi.spyOn(gisLayers, 'fetchLayerData').mockImplementation((layerName: string) => {
       if (layerName === 'apoyos') {
         return Promise.resolve(apoyos);
       }
@@ -146,24 +175,20 @@ describe('MapComponent', () => {
       return Promise.reject(new Error(`Unexpected layer ${layerName}`));
     });
 
-    await component['loadCriticalSpansComposite']('C:/case');
+    await gisLayers.loadCriticalSpansComposite('C:/case', layers, () => {});
 
-    expect(component.vanosLayer.getSource()?.getFeatures()).toHaveLength(0);
-    expect(component.displayLayer.getSource()?.getFeatures()).toHaveLength(0);
-    expect(component.criticalVanosAuxLayer.getSource()?.getFeatures()).toHaveLength(1);
-    expect(component.criticalSupportsAuxLayer.getSource()?.getFeatures()).toHaveLength(1);
-    expect(component.criticalSpansLayer.getSource()?.getFeatures()).toHaveLength(1);
+    expect(layers.vanosLayer?.getSource()?.getFeatures()).toHaveLength(0);
+    expect(layers.displayLayer?.getSource()?.getFeatures()).toHaveLength(0);
+    expect(layers.criticalVanosAuxLayer?.getSource()?.getFeatures()).toHaveLength(1);
+    expect(layers.criticalSupportsAuxLayer?.getSource()?.getFeatures()).toHaveLength(1);
+    expect(layers.criticalSpansLayer?.getSource()?.getFeatures()).toHaveLength(1);
   });
 
   it('should still render critical spans when auxiliary layers fail', async () => {
-    component.vanosLayer = new VectorLayer({ source: new VectorSource() });
-    component.displayLayer = new VectorLayer({ source: new VectorSource() });
-    component.criticalVanosAuxLayer = new VectorLayer({ source: new VectorSource() });
-    component.criticalSupportsAuxLayer = new VectorLayer({ source: new VectorSource() });
-    component.criticalSpansLayer = new VectorLayer({ source: new VectorSource() });
+    const layers = createLayerSet();
 
     vi.spyOn(console, 'warn').mockImplementation(() => {});
-    vi.spyOn(component as any, 'fetchLayerData').mockImplementation((layerName: unknown) => {
+    vi.spyOn(gisLayers, 'fetchLayerData').mockImplementation((layerName: string) => {
       if (layerName === 'worst') {
         return Promise.resolve({
           type: 'FeatureCollection',
@@ -179,26 +204,54 @@ describe('MapComponent', () => {
       return Promise.reject(new Error(`Missing ${layerName}`));
     });
 
-    await component['loadCriticalSpansComposite']('C:/case');
+    await gisLayers.loadCriticalSpansComposite('C:/case', layers, () => {});
 
-    expect(component.criticalVanosAuxLayer.getSource()?.getFeatures()).toHaveLength(0);
-    expect(component.criticalSupportsAuxLayer.getSource()?.getFeatures()).toHaveLength(0);
-    expect(component.criticalSpansLayer.getSource()?.getFeatures()).toHaveLength(1);
+    expect(layers.criticalVanosAuxLayer?.getSource()?.getFeatures()).toHaveLength(0);
+    expect(layers.criticalSupportsAuxLayer?.getSource()?.getFeatures()).toHaveLength(0);
+    expect(layers.criticalSpansLayer?.getSource()?.getFeatures()).toHaveLength(1);
   });
 
   it('should clear critical composite layers when changing layer', () => {
-    component.criticalVanosAuxLayer = new VectorLayer({ source: new VectorSource() });
-    component.criticalSupportsAuxLayer = new VectorLayer({ source: new VectorSource() });
-    component.criticalSpansLayer = new VectorLayer({ source: new VectorSource() });
+    const layers = createLayerSet();
 
-    component.criticalVanosAuxLayer.getSource()?.addFeature(new Feature({ geometry: new Point([0, 0]) }));
-    component.criticalSupportsAuxLayer.getSource()?.addFeature(new Feature({ geometry: new Point([0, 0]) }));
-    component.criticalSpansLayer.getSource()?.addFeature(new Feature({ geometry: new Point([0, 0]) }));
+    layers.criticalVanosAuxLayer?.getSource()?.addFeature(new Feature({ geometry: new Point([0, 0]) }));
+    layers.criticalSupportsAuxLayer?.getSource()?.addFeature(new Feature({ geometry: new Point([0, 0]) }));
+    layers.criticalSpansLayer?.getSource()?.addFeature(new Feature({ geometry: new Point([0, 0]) }));
 
-    component['clearCriticalCompositeLayers']();
+    gisLayers.clearCriticalCompositeLayers(layers);
 
-    expect(component.criticalVanosAuxLayer.getSource()?.getFeatures()).toHaveLength(0);
-    expect(component.criticalSupportsAuxLayer.getSource()?.getFeatures()).toHaveLength(0);
-    expect(component.criticalSpansLayer.getSource()?.getFeatures()).toHaveLength(0);
+    expect(layers.criticalVanosAuxLayer?.getSource()?.getFeatures()).toHaveLength(0);
+    expect(layers.criticalSupportsAuxLayer?.getSource()?.getFeatures()).toHaveLength(0);
+    expect(layers.criticalSpansLayer?.getSource()?.getFeatures()).toHaveLength(0);
+  });
+
+  it('should activate and deactivate support drawing', () => {
+    (globalThis as any).ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+
+    component.drawMode = 'support';
+    component.ngAfterViewInit();
+
+    expect(component.drawInteraction).toBeTruthy();
+
+    component.drawMode = 'none';
+    component.ngOnChanges({
+      drawMode: new SimpleChange('support', 'none', false)
+    });
+
+    expect(component.drawInteraction).toBeNull();
   });
 });
+
+function createLayerSet(): MapLayerSet {
+  return {
+    vanosLayer: new VectorLayer({ source: new VectorSource() }),
+    displayLayer: new VectorLayer({ source: new VectorSource() }),
+    criticalVanosAuxLayer: new VectorLayer({ source: new VectorSource() }),
+    criticalSupportsAuxLayer: new VectorLayer({ source: new VectorSource() }),
+    criticalSpansLayer: new VectorLayer({ source: new VectorSource() })
+  };
+}

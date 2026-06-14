@@ -218,43 +218,6 @@ def build_plan_names_only(
 # APLICACIÓN DEL PLAN
 # ============================================================
 
-def apply_plan_names_only2(plan_df: pd.DataFrame, out_dir: Path, recursive: bool) -> dict:
-    """
-    Aplica el renombrado usando:
-      old_path = (ruta real del fichero antiguo)
-      new_path = old_path.with_name(new_name)
-    Para resolver old_name->Path, se crea un diccionario name->Path desde el directorio.
-    """
-    name_to_path = list_candidate_files(out_dir, recursive=recursive)
-
-    missing_files = []
-    collisions = []
-    applied = 0
-
-    for _, r in plan_df.iterrows():
-        old_name = str(r["old_name"])
-        new_name = str(r["new_name"])
-
-        old_path = name_to_path.get(old_name)
-        if old_path is None or not old_path.exists():
-            missing_files.append(old_name)
-            continue
-
-        new_path = old_path.with_name(new_name)
-        if new_path.exists():
-            collisions.append(new_name)
-            continue
-
-        old_path.rename(new_path)
-        applied += 1
-
-        # actualiza el diccionario para renombres posteriores
-        del name_to_path[old_name]
-        name_to_path[new_name] = new_path
-
-    return {"applied": applied, "missing_files": missing_files, "collisions": collisions}
-
-
 def apply_plan_names_only(plan_df: pd.DataFrame, out_dir: Path, dest_dir: Path, recursive: bool) -> dict:
     """
     Aplica el renombrado MOVIENDO los ficheros desde out_dir a dest_dir con el nombre nuevo.

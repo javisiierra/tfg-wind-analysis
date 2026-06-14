@@ -118,3 +118,38 @@ def test_request_requires_single_domain_identifier():
         json={"year": 2024, "case_path": "/tmp/caseA", "domain_id": "x"},
     )
     assert resp.status_code == 422
+
+
+def test_dashboard_job_status_contract_uses_canonical_finished_state(monkeypatch):
+    monkeypatch.setattr(
+        dashboard_router.job_store,
+        "get",
+        lambda _job_id: {
+            "job_id": "job-1",
+            "status": "finished",
+            "progress": 100,
+            "message": "done",
+            "result": {
+                "meteo_summary": {},
+                "wind_timeseries": [],
+                "wind_rose": [],
+            },
+            "error": None,
+            "created_at": "ignored",
+            "updated_at": "ignored",
+        },
+    )
+
+    resp = client.get("/api/v1/dashboard/meteo-summary/status/job-1")
+
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "finished"
+
+
+def test_dashboard_missing_job_uses_api_error_contract(monkeypatch):
+    monkeypatch.setattr(dashboard_router.job_store, "get", lambda _job_id: None)
+
+    resp = client.get("/api/v1/dashboard/meteo-summary/status/missing")
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == {"code": "JOB_NOT_FOUND", "message": "job_id no encontrado"}

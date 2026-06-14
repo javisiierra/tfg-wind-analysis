@@ -18,7 +18,6 @@ def list_windninja_pairs(folder: str | Path):
         raise FileNotFoundError(f"No existe la carpeta OUT_WN_REN: {folder}")
 
     files = [p for p in folder.iterdir() if p.is_file()]
-    print("OUT_WN_REN files:", [p.name for p in files])
 
     vel = {}
     ang = {}
@@ -47,12 +46,6 @@ def list_windninja_pairs(folder: str | Path):
                 prj[m_prj.group("base")] = p
 
     bases = sorted(set(vel) & set(ang) & set(prj))
-    if not bases:
-        print("No paired windninja files found.")
-        print("vel keys:", sorted(vel.keys()))
-        print("ang keys:", sorted(ang.keys()))
-        print("prj keys:", sorted(prj.keys()))
-
     return [(b, vel[b], ang[b], prj[b]) for b in bases]
 
 
@@ -224,12 +217,6 @@ def compute_worst_supports(cfg, top_n: int = 4) -> dict[str, Any]:
 
     if cfg.out_wn_ren is None or not Path(cfg.out_wn_ren).exists():
         raise FileNotFoundError(f"No existe carpeta OUT_WN_REN: {cfg.out_wn_ren}")
-
-    print("worst_supports case_path:", cfg.general_path)
-    print("cfg.out_apoyos_shp:", cfg.out_apoyos_shp, "exists:", Path(cfg.out_apoyos_shp).exists() if cfg.out_apoyos_shp else False)
-    print("cfg.out_vanos_shp:", out_vanos, "exists:", out_vanos.exists())
-    print("cfg.out_wn_ren:", cfg.out_wn_ren, "exists:", Path(cfg.out_wn_ren).exists())
-    print("cfg.out_v_perp_min_shp:", cfg.out_v_perp_min_shp)
 
     pairs = list_windninja_pairs(cfg.out_wn_ren)
 

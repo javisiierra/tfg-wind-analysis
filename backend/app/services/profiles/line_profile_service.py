@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 
 from app.services.towers.towers_validation_service import (
-    parse_number,
     parse_xyz_with_autoscale,
 )
 

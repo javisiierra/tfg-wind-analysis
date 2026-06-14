@@ -2,23 +2,26 @@ import logging
 import os
 import re
 import traceback
+from dataclasses import is_dataclass, replace
 from pathlib import Path
 from typing import Any
-import numpy as np
-
 import geopandas as gpd
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from shapely.geometry import shape, LineString, box
+from shapely.geometry import shape
 
 from app.core.config import load_config_from_case
 from app.core.paths import normalize_case_path
 from app.api.v1.layer_response import (
-    _enrich_worst_supports_geojson,
     geojson_file_to_geojson_response,
     shapefile_to_geojson_response,
 )
 from app.services.case_import.import_folder_service import import_folder_from_input_path
+from app.services.domain.generation_service import (
+    DomainGenerationError,
+    DomainGenerationService,
+)
+from app.api.v1.contracts import PipelineStatusDTO
 from app.services.vanos.vanos_from_supports_service import (
     VanosGenerationError,
     canonical_vanos_geojson_path,
@@ -34,8 +37,17 @@ from app.scripts.run_local_pipeline import (
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+domain_generation_service = DomainGenerationService()
 
-BASE_ROOT = normalize_case_path(Path(os.getenv("HOST_CASES_ROOT", r"C:\Datos_TFG")))
+
+def _required_env_path(name: str) -> Path:
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"Configura {name} en .env antes de arrancar el backend.")
+    return normalize_case_path(Path(value))
+
+
+BASE_ROOT = _required_env_path("HOST_CASES_ROOT")
 
 
 # ============================================================
@@ -121,14 +133,14 @@ def _safe_case_name(name: str) -> str:
 
 
 def get_existing_domain_path(case_path: str) -> Path | None:
-    case_root = normalize_case_path(case_path)
-    cfg = load_cfg_from_case_or_raise(case_path)
+    return domain_generation_service.find_existing_domain_path(case_path)
 
-    return get_existing_path(
-        Path(cfg.in_shp) if cfg.in_shp else None,
-        case_root / "SHP" / "dominio.shp",
-        case_root / "SHP" / "dominio.geojson",
-    )
+
+def _with_domain_input(cfg, domain_path: Path):
+    if is_dataclass(cfg):
+        return replace(cfg, in_shp=domain_path)
+    cfg.in_shp = domain_path
+    return cfg
 
 
 def get_trace_shapefile_path(case_path: str) -> Path | None:
@@ -138,58 +150,22 @@ def get_trace_shapefile_path(case_path: str) -> Path | None:
 
 def get_supports_shapefile_path(case_path: str) -> Path | None:
     cfg = load_cfg_from_case_or_raise(case_path)
+    configured_supports = getattr(cfg, "out_apoyos_shp", None)
     return get_existing_path(
-        Path(cfg.out_apoyos_shp) if cfg.out_apoyos_shp else None,
+        Path(configured_supports) if configured_supports else None,
         normalize_case_path(case_path) / "Apoyos" / "apoyos.shp",
     )
 
 
 def _create_domain_from_trace_shp(case_path: str, trace_shp: Path, buffer_m: float | None = None) -> dict[str, str]:
-    if not trace_shp.exists():
-        raise HTTPException(status_code=404, detail=f"No existe el shapefile de traza: {trace_shp}")
-
-    gdf = gpd.read_file(trace_shp)
-    if gdf.empty:
-        raise HTTPException(status_code=400, detail=f"El shapefile de traza está vacío: {trace_shp}")
-
-    if gdf.crs is None:
-        gdf = gdf.set_crs(epsg=25830)
-
-    minx, miny, maxx, maxy = gdf.total_bounds
-    if minx == maxx or miny == maxy:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "No se pudo calcular el dominio porque la traza tiene límites nulos. "
-                f"Bounds: {gdf.total_bounds}"
-            ),
-        )
-
-    buffer_value = buffer_m if buffer_m is not None else max(100.0, max(maxx - minx, maxy - miny) * 0.05)
-    domain_geom = box(minx - buffer_value, miny - buffer_value, maxx + buffer_value, maxy + buffer_value)
-
-    domain_gdf = gpd.GeoDataFrame(
-        {"source": ["generated_from_trace"], "buffer_m": [buffer_value]},
-        geometry=[domain_geom],
-        crs=gdf.crs,
-    )
-
-    case_root = normalize_case_path(case_path)
-    shp_dir = case_root / "SHP"
-    shp_dir.mkdir(parents=True, exist_ok=True)
-
-    domain_shp_path = shp_dir / "dominio.shp"
-    domain_geojson_path = shp_dir / "dominio.geojson"
-
-    domain_gdf.to_file(domain_shp_path)
-    domain_geojson_path.write_text(domain_gdf.to_crs(epsg=4326).to_json(), encoding="utf-8")
-
-    return {
-        "domain_shp": str(domain_shp_path),
-        "domain_geojson": str(domain_geojson_path),
-        "source": "trace",
-        "buffer_m": buffer_value,
-    }
+    try:
+        return domain_generation_service.generate_from_trace(
+            case_path,
+            trace_shp,
+            buffer_m=buffer_m,
+        ).to_dict()
+    except DomainGenerationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _generate_domain_from_supports_logic(case_path: str, buffer_m: float | None = None) -> dict[str, str]:
@@ -201,76 +177,37 @@ def _generate_domain_from_supports_logic(case_path: str, buffer_m: float | None 
             detail="No existen apoyos para generar el dominio.",
         )
 
-    supports_gdf = gpd.read_file(supports_path)
-    if supports_gdf.empty:
-        raise HTTPException(status_code=400, detail="La capa de apoyos está vacía.")
+    try:
+        return domain_generation_service.generate_from_supports(
+            case_path,
+            supports_path,
+            buffer_m=buffer_m,
+        ).to_dict()
+    except DomainGenerationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    if supports_gdf.crs is None:
-        supports_gdf = supports_gdf.set_crs(epsg=25830)
 
-    supports_utm = supports_gdf.to_crs(epsg=25830)
-    if "support_order" in supports_utm.columns:
-        supports_utm = supports_utm.sort_values("support_order")
+def _ensure_vanos_for_preparation(case_path_value: str, cfg) -> dict[str, Any]:
+    case_path = normalize_case_path(case_path_value)
+    existing_vanos = find_existing_vanos_path(case_path, cfg)
+    if existing_vanos is not None:
+        return {"status": "reused", "path": str(existing_vanos)}
 
-    coords = [
-        (geom.x, geom.y)
-        for geom in supports_utm.geometry
-        if geom is not None and geom.geom_type == "Point"
-    ]
+    supports_path = get_supports_shapefile_path(case_path_value)
+    if supports_path is None:
+        return {
+            "status": "skipped",
+            "reason": "No existen apoyos para generar vanos.",
+        }
 
-    if len(coords) < 2:
-        raise HTTPException(
-            status_code=400,
-            detail="Se necesitan al menos 2 apoyos para generar el dominio.",
-        )
-
-    line = LineString(coords)
-    distances = [
-        ((coords[i + 1][0] - coords[i][0]) ** 2 + (coords[i + 1][1] - coords[i][1]) ** 2) ** 0.5
-        for i in range(len(coords) - 1)
-    ]
-    mean_span_m = sum(distances) / len(distances)
-
-    computed_buffer = buffer_m if buffer_m is not None else max(mean_span_m * 2, 200)
-    if computed_buffer <= 0:
-        raise HTTPException(
-            status_code=400,
-            detail="El buffer debe ser mayor que 0 metros.",
-        )
-
-    domain_geometry = line.buffer(computed_buffer)
-    domain_gdf = gpd.GeoDataFrame(
-        [
-            {
-                "source": "generated_from_supports",
-                "buffer_m": computed_buffer,
-                "mean_span_m": mean_span_m,
-                "n_supports": len(coords),
-                "geometry": domain_geometry,
-            }
-        ],
-        geometry="geometry",
-        crs="EPSG:25830",
-    )
-
-    case_root = normalize_case_path(case_path)
-    shp_dir = case_root / "SHP"
-    shp_dir.mkdir(parents=True, exist_ok=True)
-
-    domain_shp_path = shp_dir / "dominio.shp"
-    domain_geojson_path = shp_dir / "dominio.geojson"
-
-    domain_gdf.to_file(domain_shp_path)
-    domain_geojson_path.write_text(domain_gdf.to_crs(epsg=4326).to_json(), encoding="utf-8")
-
-    return {
-        "domain_shp": str(domain_shp_path),
-        "domain_geojson": str(domain_geojson_path),
-        "source": "supports",
-        "buffer_m": computed_buffer,
-        "mean_span_m": mean_span_m,
-        "n_supports": len(coords),
-    }
+    try:
+        result = generate_vanos_from_supports_service(case_path_value, cfg)
+        return {
+            **result,
+            "status": "generated",
+        }
+    except VanosGenerationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _generate_weather_for_cfg(cfg):
@@ -357,6 +294,7 @@ def health():
 
 @router.post(
     "/supports/generate-vanos",
+    response_model=PipelineStatusDTO,
     tags=["Apoyos"],
     summary="Generar vanos desde apoyos",
     description="Genera automáticamente los vanos (líneas entre apoyos consecutivos).",
@@ -388,6 +326,7 @@ def generate_vanos_from_supports(request: PipelineRequest):
 
 @router.post(
     "/vanos/generate-from-supports",
+    response_model=PipelineStatusDTO,
     tags=["Vanos"],
     summary="Generar vanos desde apoyos",
     description="Genera la capa de vanos en SHP/vanos.shp y SHP/vanos.geojson si todavía no existe.",
@@ -397,6 +336,7 @@ def generate_vanos_from_supports_endpoint(request: PipelineRequest):
 
 @router.post(
     "/supports/create",
+    response_model=PipelineStatusDTO,
     tags=["Apoyos"],
     summary="Crear apoyo",
     description="Añade un nuevo apoyo manual dibujado desde el mapa al caso.",
@@ -503,51 +443,8 @@ def create_support(request: SupportCreateRequest):
 
         # Mantener actualizada la capa de vanos que consume /layers/vanos.
         vanos_path = case_path / "SHP" / "vanos.shp"
-        vanos_geojson_path = case_path / "SHP" / "vanos.geojson"
-        vanos_path.parent.mkdir(parents=True, exist_ok=True)
-
-        points = [
-            geom
-            for geom in gdf.geometry
-            if geom is not None and geom.geom_type == "Point"
-        ]
-
-        if len(points) >= 2:
-            records = []
-
-            for i in range(len(points) - 1):
-                p1 = points[i]
-                p2 = points[i + 1]
-
-                dx = p2.x - p1.x
-                dy = p2.y - p1.y
-                direccion = (np.degrees(np.arctan2(dx, dy)) + 360.0) % 360.0
-
-                records.append({
-                    "id": f"V-{i + 1}",
-                    "from_ap": f"AP-{i + 1}",
-                    "to_ap": f"AP-{i + 2}",
-                    "direccion": float(direccion),
-                    "geometry": LineString([p1, p2]),
-                })
-
-            vanos_gdf = gpd.GeoDataFrame(
-                records,
-                geometry="geometry",
-                crs="EPSG:25830",
-            )
-
-            for ext in [".shp", ".shx", ".dbf", ".prj", ".cpg"]:
-                p = vanos_path.with_suffix(ext)
-                if p.exists():
-                    p.unlink()
-
-            vanos_gdf.to_file(
-                vanos_path,
-                driver="ESRI Shapefile",
-                encoding="UTF-8",
-            )
-            vanos_gdf.to_file(vanos_geojson_path, driver="GeoJSON")
+        if support_total >= 2:
+            generate_vanos_from_supports_service(case_path, force=True)
 
         print("Guardado apoyo:", support_id)
         print("Total apoyos:", support_total)
@@ -586,6 +483,7 @@ def create_support(request: SupportCreateRequest):
 
 @router.post(
     "/domain/generate-from-supports",
+    response_model=PipelineStatusDTO,
     tags=["Dominio"],
     summary="Generar dominio desde apoyos",
     description=(
@@ -629,18 +527,20 @@ def generate_domain_from_supports(request: DomainFromSupportsRequest):
     description="Genera el Modelo Digital de Elevaciones a partir del dominio.",
 )
 def generate_dem_from_domain(request: PipelineRequest):
-    cfg = load_cfg_from_case_or_raise(request.case_path)
-    case_path = normalize_case_path(request.case_path)
+    return _generate_dem_for_case(request.case_path)
 
-    domain_path = case_path / "SHP" / "dominio.shp"
-    if domain_path.exists() and (cfg.in_shp is None or Path(cfg.in_shp).resolve() != domain_path.resolve()):
-        cfg.in_shp = domain_path
 
-    if cfg.in_shp is None or not Path(cfg.in_shp).exists():
+def _generate_dem_for_case(case_path_value: str) -> dict[str, Any]:
+    cfg = load_cfg_from_case_or_raise(case_path_value)
+    case_path = normalize_case_path(case_path_value)
+
+    domain_path = get_existing_domain_path(case_path_value)
+    if domain_path is None:
         raise HTTPException(
             status_code=400,
             detail="No existe geometría de dominio para generar el DEM.",
         )
+    cfg = _with_domain_input(cfg, domain_path)
 
     # Asegurar carpetas necesarias para la ruta de salida
     for required in [case_path / "Calculos", case_path / "MDT_WN", case_path / "SHP"]:
@@ -651,7 +551,7 @@ def generate_dem_from_domain(request: PipelineRequest):
             Path(path).parent.mkdir(parents=True, exist_ok=True)
 
     # Si dominio existe sin CRS, asignarlo explícitamente.
-    if domain_path.exists():
+    if domain_path.suffix.lower() == ".shp":
         try:
             gdf = gpd.read_file(domain_path)
             if gdf.crs is None:
@@ -661,7 +561,7 @@ def generate_dem_from_domain(request: PipelineRequest):
             pass
 
     debug_info = {
-        "request.case_path": request.case_path,
+        "request.case_path": case_path_value,
         "cfg.general_path": str(cfg.general_path),
         "cfg.in_shp": str(cfg.in_shp) if cfg.in_shp else None,
         "cfg.out_shp": str(cfg.out_shp) if cfg.out_shp else None,
@@ -690,7 +590,7 @@ def generate_dem_from_domain(request: PipelineRequest):
 
         return {
             "status": "ok",
-            "case_path": request.case_path,
+            "case_path": case_path_value,
             "domain_file": str(cfg.in_shp) if cfg.in_shp else None,
             "out_shp": str(cfg.out_shp) if cfg.out_shp else None,
             "out_rec_shp": str(cfg.out_rec_shp) if cfg.out_rec_shp else None,
@@ -714,7 +614,51 @@ def generate_dem_from_domain(request: PipelineRequest):
 
 
 @router.post(
+    "/domain/prepare-dem",
+    response_model=PipelineStatusDTO,
+    tags=["Dominio"],
+    summary="Preparar dominio y terreno",
+    description=(
+        "Reutiliza el dominio canónico si ya existe. Si falta, lo genera desde apoyos. "
+        "Después genera siempre el DEM."
+    ),
+)
+def prepare_domain_and_dem(request: PipelineRequest):
+    domain_path = get_existing_domain_path(request.case_path)
+    domain_status = "reused"
+
+    if domain_path is None:
+        domain_result = _generate_domain_from_supports_logic(request.case_path)
+        domain_path = Path(domain_result["domain_shp"])
+        domain_status = "generated"
+
+    try:
+        dem_result = _generate_dem_for_case(request.case_path)
+    except HTTPException as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={
+                "stage": "dem",
+                "message": "El dominio está preparado, pero no se pudo generar el DEM.",
+                "cause": exc.detail,
+            },
+        ) from exc
+
+    return {
+        "status": "ok",
+        "case_path": request.case_path,
+        "domain": {
+            "status": domain_status,
+            "path": str(domain_path),
+            "geojson": str(domain_generation_service.canonical_geojson_path(request.case_path)),
+        },
+        "dem": dem_result,
+    }
+
+
+@router.post(
     "/domain/generate-weather",
+    response_model=PipelineStatusDTO,
     tags=["Dominio"],
     summary="Generar meteorología",
     description="Genera los ficheros de entrada de viento para WindNinja.",
@@ -723,12 +667,14 @@ def generate_weather_from_domain(request: PipelineRequest):
     import traceback
     
     cfg = load_cfg_from_case_or_raise(request.case_path)
+    domain_path = get_existing_domain_path(request.case_path)
 
-    if cfg.in_shp is None or not Path(cfg.in_shp).exists():
+    if domain_path is None:
         raise HTTPException(
             status_code=400,
             detail="No existe geometría de dominio para generar meteorología.",
         )
+    cfg = _with_domain_input(cfg, domain_path)
 
     try:
         weather_result = _generate_weather_for_cfg(cfg)
@@ -754,6 +700,7 @@ def generate_weather_from_domain(request: PipelineRequest):
 
 @router.post(
     "/pipeline/run-preparation",
+    response_model=PipelineStatusDTO,
     tags=["Pipeline"],
     summary="Ejecutar preparación moderna",
     description=(
@@ -788,12 +735,14 @@ def run_preparation(request: PipelineRequest):
         cfg = load_cfg_from_case_or_raise(request.case_path)
         domain_path = get_existing_domain_path(request.case_path)
 
-    if cfg.in_shp is None or not Path(cfg.in_shp).exists():
+    if domain_path is None:
         raise HTTPException(
             status_code=400,
             detail="No se encontró el dominio después de la generación.",
         )
+    cfg = _with_domain_input(cfg, domain_path)
 
+    vanos_result = _ensure_vanos_for_preparation(request.case_path, cfg)
     dem_result = run_geometry_and_dem(cfg)
     weather_result = _generate_weather_for_cfg(cfg)
 
@@ -804,6 +753,7 @@ def run_preparation(request: PipelineRequest):
             "path": str(domain_path) if domain_path else None,
             **domain_info,
         },
+        "vanos": vanos_result,
         "dem": {
             "out_shp": str(cfg.out_shp) if cfg.out_shp else None,
             "out_rec_shp": str(cfg.out_rec_shp) if cfg.out_rec_shp else None,
@@ -916,12 +866,21 @@ def _run_wind_rose_for_cfg(cfg) -> dict[str, Any]:
 
 @router.post(
     "/pipeline/run-windninja",
+    response_model=PipelineStatusDTO,
     tags=["Pipeline"],
     summary="Ejecutar WindNinja",
     description="Lanza la simulación de WindNinja con los datos preparados.",
 )
 def run_windninja_api(request: PipelineRequest):
     cfg = load_cfg_from_case_or_raise(request.case_path)
+    domain_path = get_existing_domain_path(request.case_path)
+
+    if domain_path is None:
+        raise HTTPException(
+            status_code=400,
+            detail="No existe dominio canónico SHP/dominio.shp o SHP/dominio.geojson para ejecutar WindNinja.",
+        )
+    cfg = _with_domain_input(cfg, domain_path)
 
     if cfg.in_weather_file is None:
         raise HTTPException(
@@ -1096,6 +1055,7 @@ def import_folder_api(request: FolderImportRequest):
 
 @router.post(
     "/case/status",
+    response_model=PipelineStatusDTO,
     tags=["Estado"],
     summary="Estado del caso",
     description="Devuelve el estado del caso: dominio, DEM, apoyos, vanos y meteorología.",
@@ -1105,11 +1065,9 @@ def get_case_status(request: PipelineRequest):
 
     case_path = normalize_case_path(request.case_path)
     fallback_apoyos = case_path / "Apoyos" / "apoyos.shp"
-    fallback_domain = case_path / "SHP" / "dominio.shp"
-
-    has_domain = (
-        cfg.in_shp is not None and Path(cfg.in_shp).exists()
-    ) or fallback_domain.exists()
+    domain_path = get_existing_domain_path(request.case_path)
+    fallback_domain = domain_generation_service.canonical_shp_path(case_path)
+    has_domain = domain_path is not None
 
     has_dem = cfg.out_mdt_tif is not None and Path(cfg.out_mdt_tif).exists()
     has_weather = cfg.in_weather_file is not None and Path(cfg.in_weather_file).exists()
@@ -1131,7 +1089,7 @@ def get_case_status(request: PipelineRequest):
         "has_vanos": has_vanos,
         "ready_for_windninja": has_domain and has_dem and has_weather and has_apoyos,
         "paths": {
-            "domain": str(cfg.in_shp) if cfg.in_shp else str(fallback_domain),
+            "domain": str(domain_path) if domain_path else str(fallback_domain),
             "dem": str(cfg.out_mdt_tif) if cfg.out_mdt_tif else None,
             "weather": str(cfg.in_weather_file) if cfg.in_weather_file else None,
             "apoyos": str(cfg.out_apoyos_shp) if cfg.out_apoyos_shp else str(fallback_apoyos),
@@ -1193,13 +1151,8 @@ def get_vanos_layer(request: PipelineRequest):
     description="Devuelve la capa del dominio de simulación.",
 )
 def get_dominio_layer(request: PipelineRequest):
-    cfg = load_cfg_from_case_or_raise(request.case_path)
-
-    shp_path = get_existing_path(
-        Path(cfg.out_rec_exp_shp) if cfg.out_rec_exp_shp else None,
-        Path(cfg.in_shp) if cfg.in_shp else None,
-        normalize_case_path(request.case_path) / "SHP" / "dominio.shp",
-    )
+    load_cfg_from_case_or_raise(request.case_path)
+    shp_path = get_existing_domain_path(request.case_path)
 
     if shp_path is None:
         return geojson_file_to_geojson_response(

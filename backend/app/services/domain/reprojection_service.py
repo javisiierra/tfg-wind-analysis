@@ -1,6 +1,3 @@
-import geopandas as gpd
-
-
 def ensure_25830_crs(gdf):
     if gdf.crs is None:
         gdf = gdf.set_crs(epsg=25830)

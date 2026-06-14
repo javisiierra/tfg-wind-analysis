@@ -39,12 +39,37 @@ El flujo soportado del proyecto es Docker Compose. No se mantiene como flujo pri
 
 ## Configuracion
 
+El despliegue local se configura con un archivo `.env`. Crea una copia de `.env.example`:
+
+```bash
+cp .env.example .env
+```
+
+En Windows tambien puedes copiarlo desde el explorador o con PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+### Variables `.env`
+
+Para el funcionamiento completo del proyecto, configura todas estas variables en `.env`:
+
+| Variable | Uso | Obligatoria |
+| --- | --- | --- |
+| `HOST_CASES_ROOT` | Carpeta local de tu ordenador que Docker monta como `/data` dentro del backend. | Si |
+| `CDSAPI_URL` / `CDSAPI_KEY` | Credenciales de Copernicus CDS para funcionalidades ERA5. | Si |
+| `CUSTOM_SRTM_API_KEY` | API key de OpenTopography para descargar DEM SRTM con `fetch_dem`. | Si |
+| `WINDNINJA_CLI` | Nombre o ruta Linux del ejecutable WindNinja dentro del contenedor. Normalmente se deja como `WindNinja_cli`. | Si |
+
+Si alguna variable falta o esta vacia, la aplicacion puede arrancar, pero fallara la fase que dependa de ella.
+
 ### Carpeta de casos
 
-Crea un archivo `.env` a partir de `.env.example` e indica donde estan los casos en tu ordenador:
+Edita `HOST_CASES_ROOT` en `.env` para indicar donde estan los casos en tu ordenador:
 
 ```env
-HOST_CASES_ROOT=C:/Datos_TFG
+HOST_CASES_ROOT=C:/Ruta/A/Tus/Casos
 ```
 
 Cada persona puede usar su propia ruta local, por ejemplo:
@@ -78,7 +103,7 @@ CDSAPI_KEY=<uid>:<api-key>
 
 La fase `Generar DEM` (`POST /api/v1/domain/generate-dem`) descarga el modelo de elevacion SRTM usando `fetch_dem --src srtm`. Para que esa descarga funcione es necesaria una API key de OpenTopography.
 
-Crea una cuenta o genera la clave en OpenTopography y anadela al archivo `.env`:
+Crea una cuenta o genera la clave en OpenTopography y añadela al archivo `.env`:
 
 ```env
 CUSTOM_SRTM_API_KEY=<opentopography-api-key>
@@ -86,41 +111,23 @@ CUSTOM_SRTM_API_KEY=<opentopography-api-key>
 
 El backend pasa esta variable al ejecutable `fetch_dem` dentro del contenedor. Si falta o esta vacia, la generacion del DEM fallara al intentar descargar SRTM.
 
-Despues de crear o modificar `.env`, reinicia los contenedores para que Docker Compose cargue la variable:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.windninja.yml up --build
-```
-
-### WindNinja
-
-El backend lee el ejecutable desde la variable `WINDNINJA_CLI`.
-
-La imagen no instala WindNinja automaticamente. Las fases que ejecutan WindNinja requieren anadir WindNinja para Linux a la imagen backend o usar una imagen base que ya lo incluya.
-
-La instalacion de Windows, por ejemplo `C:/WindNinja/WindNinja-3.12.1/bin/WindNinja_cli.exe`, no se puede ejecutar directamente desde el contenedor Linux.
-
-Para construir el entorno con WindNinja dentro del backend:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.windninja.yml up --build
-```
-
-Esta imagen compila WindNinja `3.12.1` en una version minima de `WindNinja_cli`, sin GUI y sin NinjaFOAM/OpenFOAM, porque el proyecto usa `initialization_method = pointInitialization` y salida ASCII. Para desarrollo normal sin ejecutar WindNinja puedes seguir usando:
-
-```bash
-docker compose up --build
-```
+Despues de crear o modificar `.env`, reinicia los contenedores para que Docker Compose cargue las variables.
 
 ---
 
-## Ejecucion
+## Despliegue local con Docker Compose
 
-Para levantar el backend y el frontend:
+El flujo soportado del proyecto es Docker Compose. No se mantiene como flujo principal la ejecucion local separada de backend y frontend.
+
+### Modo recomendado con WindNinja
+
+Usa este modo para levantar el proyecto completo. Es el despliegue recomendado porque WindNinja es una parte central del flujo de analisis y las fases principales dependen de `WindNinja_cli` o `fetch_dem` dentro del backend:
 
 ```bash
-docker compose up --build
+docker compose -f docker-compose.yml -f docker-compose.windninja.yml up --build
 ```
+
+Este comando usa `backend/Dockerfile.windninja`, que compila WindNinja `3.12.1` en una version minima de `WindNinja_cli`, sin GUI y sin NinjaFOAM/OpenFOAM. Esta imagen tambien incluye `fetch_dem`, necesario para la descarga DEM SRTM.
 
 Servicios publicados:
 
@@ -128,21 +135,52 @@ Servicios publicados:
 - Backend FastAPI: `http://localhost:8000`
 - Documentacion API: `http://localhost:8000/docs`
 
-Para parar el entorno:
+El backend lee el ejecutable desde `WINDNINJA_CLI`. Con esta imagen normalmente debes dejar:
+
+```env
+WINDNINJA_CLI=WindNinja_cli
+```
+
+La instalacion de Windows, por ejemplo `C:/WindNinja/WindNinja-3.12.1/bin/WindNinja_cli.exe`, no se puede ejecutar directamente desde el contenedor Linux.
+
+### Modo base sin WindNinja
+
+Este modo solo sirve para pruebas parciales del backend/frontend que no ejecuten el pipeline completo de viento:
+
+```bash
+docker compose up --build
+```
+
+No es el despliegue recomendado para usar la aplicacion completa.
+
+### Parar el entorno
+
+Para detener y eliminar los contenedores:
 
 ```bash
 docker compose down
 ```
 
+Si has levantado el modo recomendado con WindNinja, puedes usar el mismo comando anterior desde la raiz del proyecto.
+
+---
+
+## Flujo recomendado
+
+1. Copia `.env.example` a `.env`.
+2. Configura `HOST_CASES_ROOT` con la carpeta local donde estan los casos.
+3. Configura `CDSAPI_URL` y `CDSAPI_KEY` para las consultas ERA5.
+4. Configura `CUSTOM_SRTM_API_KEY` para la descarga DEM SRTM.
+5. Levanta el modo recomendado con WindNinja: `docker compose -f docker-compose.yml -f docker-compose.windninja.yml up --build`.
+6. Abre la interfaz en `http://localhost:4200`.
+
 ---
 
 ## Uso basico
 
-1. Configura `HOST_CASES_ROOT` en `.env` apuntando a la carpeta local donde estan los casos.
-2. Levanta la aplicacion con `docker compose up --build`.
-3. Selecciona un caso desde la interfaz.
-4. Ejecuta las fases desde la interfaz.
-5. Visualiza capas y resultados en el mapa/dashboard.
+1. Selecciona un caso desde la interfaz.
+2. Ejecuta las fases desde la interfaz.
+3. Visualiza capas y resultados en el mapa/dashboard.
 
 ---
 

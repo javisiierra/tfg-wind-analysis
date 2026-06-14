@@ -108,16 +108,12 @@
       </div>
     </div>
 
-    <button class="btn secondary" (click)="runGenerateDomainFromSupports()" [disabled]="loading || isExecutionRunning || !casePath || !caseStatus?.has_apoyos">
-      Generar dominio desde apoyos
+    <button class="btn secondary" (click)="runPrepareDomainAndTerrain()" [disabled]="loading || isExecutionRunning || !casePath || (!caseStatus?.has_domain && !caseStatus?.has_apoyos)">
+      Preparar dominio y terreno
     </button>
 
     <button class="btn secondary" (click)="runGenerateVanosFromSupports()" [disabled]="loading || isExecutionRunning || !casePath || !caseStatus?.has_apoyos">
       Generar vanos desde apoyos
-    </button>
-
-    <button class="btn secondary" (click)="runGenerateDem()" [disabled]="loading || isExecutionRunning || !casePath">
-      Generar DEM
     </button>
 
     <button class="btn secondary" (click)="runGenerateWeather()" [disabled]="loading || isExecutionRunning || !casePath">

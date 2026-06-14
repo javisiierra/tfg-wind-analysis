@@ -2,7 +2,7 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { DrawMode } from '../../app';
+import { DrawMode } from '../../services/map-context.service';
 import { CaseStatusResponse } from '../../services/dashboard.service';
 import { ExecutionUiState } from '../../models/execution-ui-state';
 import { environment } from '../../../environments/environment';
@@ -118,16 +118,12 @@ export class Sidebar {
     }
   }
 
-  runGenerateDomainFromSupports() {
-    this.callDomain('/generate-from-supports', 'Generar dominio desde apoyos');
-  }
-
   runGenerateVanosFromSupports() {
     this.callVanos('/generate-from-supports', 'Generar vanos desde apoyos');
   }
 
-  runGenerateDem() {
-    this.callDomain('/generate-dem', 'Generar DEM');
+  runPrepareDomainAndTerrain() {
+    this.callDomain('/prepare-dem', 'Preparar dominio y terreno');
   }
 
   runGenerateWeather() {
@@ -197,7 +193,7 @@ export class Sidebar {
         this.emitSuccessState();
         this.actionCompletedOk.emit(this.casePath);
 
-        if (endpoint === '/generate-dem') {
+        if (endpoint === '/generate-dem' || endpoint === '/prepare-dem') {
           this.layerSelected.emit('dominio');
         }
       },
@@ -260,15 +256,22 @@ export class Sidebar {
   }
 
   private getErrorDetail(error: any, fallback: string): string {
-    return error?.error?.detail || error?.message || fallback;
+    const detail = error?.error?.detail;
+    if (typeof detail === 'string') {
+      return detail;
+    }
+    if (detail?.message) {
+      const cause = detail.cause?.error || detail.cause?.message || detail.cause;
+      return typeof cause === 'string' ? `${detail.message} ${cause}` : detail.message;
+    }
+    return error?.message || fallback;
   }
 
   private detailForAction(action: string): string {
     const details: Record<string, string> = {
       'Guardar apoyos': 'Persistiendo geometria y actualizando el caso',
-      'Generar dominio desde apoyos': 'Construyendo dominio a partir de apoyos',
       'Generar vanos desde apoyos': 'Calculando vanos entre apoyos',
-      'Generar DEM': 'Descargando, recortando y reproyectando raster',
+      'Preparar dominio y terreno': 'Comprobando el dominio y preparando el relieve',
       'Generar meteorología': 'Generando ficheros meteorologicos para WindNinja',
       'WindNinja': 'Ejecutando simulacion y postprocesos'
     };

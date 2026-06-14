@@ -5,17 +5,7 @@ import { CommonModule } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { ExecutionUiState } from '../../models/execution-ui-state';
-
-interface CaseStatusResponse {
-  status?: string;
-  case_path: string;
-  has_domain: boolean;
-  has_weather: boolean;
-  has_dem: boolean;
-  has_apoyos: boolean;
-  has_vanos: boolean;
-  ready_for_windninja: boolean;
-}
+import { DashboardService } from '../../services/dashboard.service';
 
 type PipelineStepResponse = Record<string, unknown> & {
   status?: string;
@@ -48,6 +38,7 @@ export class Topbar {
 
   constructor(
     private http: HttpClient,
+    private dashboardService: DashboardService,
     private ngZone: NgZone
   ) {}
 
@@ -123,59 +114,21 @@ export class Topbar {
       return;
     }
 
-    const payload = { case_path: this.casePath };
-
     this.loading = true;
     this.result = null;
     this.error = null;
 
     try {
-      this.emitRunningState('Validando caso', 5, 'Comprobando entradas disponibles');
-      let status = await this.getCaseStatus(this.casePath);
-      console.info('[Ejecutar preparación] Estado inicial:', status);
-
-      if (!status.has_domain) {
-        await this.runStep(
-          'Generando dominio',
-          15,
-          `${this.apiUrl}/domain/generate-from-supports`,
-          payload
-        );
-        status = await this.getCaseStatus(this.casePath);
-      } else {
-        console.info('[Ejecutar preparación] Dominio existente: se omite generación.');
-      }
-
-      if (!status.has_vanos) {
-        await this.runStep(
-          'Generando vanos',
-          30,
-          `${this.apiUrl}/vanos/generate-from-supports`,
-          payload
-        );
-      } else {
-        console.info('[Ejecutar preparación] Vanos existentes: se omite generación.');
-      }
-
       await this.runStep(
-        'Generando DEM',
-        50,
-        `${this.apiUrl}/domain/generate-dem`,
-        payload
-      );
-
-      await this.runStep(
-        'Generando meteorología',
-        70,
-        `${this.apiUrl}/domain/generate-weather`,
-        payload
+        'Preparando dominio, DEM y meteorologia',
+        45,
+        () => firstValueFrom(this.dashboardService.runPreparation(this.casePath))
       );
 
       const windninjaResult = await this.runStep(
         'Ejecutando WindNinja y postprocesado',
         90,
-        `${this.apiUrl}/pipeline/run-windninja`,
-        payload
+        () => firstValueFrom(this.dashboardService.runWindNinja(this.casePath))
       );
 
       this.result = windninjaResult;
@@ -183,7 +136,7 @@ export class Topbar {
       this.currentPipelineStage = undefined;
       this.executionUiStateChange.emit({
         status: 'success',
-        title: 'Preparación completada',
+        title: 'Preparacion completada',
         stage: 'Finalizado',
         progress: 100,
         detail: 'Pipeline moderno completado correctamente'
@@ -193,34 +146,31 @@ export class Topbar {
       this.error = err;
       this.loading = false;
       this.emitErrorState(
-        this.getErrorDetail(err, 'No se pudo ejecutar la preparación.'),
+        this.getErrorDetail(err, 'No se pudo ejecutar la preparacion.'),
         this.getFailedStage(err)
       );
-      console.error('[Ejecutar preparación] Error:', err);
+      console.error('[Ejecutar preparacion] Error:', err);
     }
   }
 
   private async runStep(
     stage: string,
     progress: number,
-    url: string,
-    payload: { case_path: string }
+    action: () => Promise<PipelineStepResponse>
   ): Promise<PipelineStepResponse> {
     this.emitRunningState(stage, progress);
-    console.info(`[Ejecutar preparación] Inicio: ${stage}`, { url, payload });
-    const response = await this.postPipelineStep<PipelineStepResponse>(url, payload);
+    const response = await action();
 
     if (!this.hasOkStatus(response)) {
       throw {
         stage,
         error: {
-          detail: `La etapa "${stage}" no devolvió un estado correcto.`
+          detail: `La etapa "${stage}" no devolvio un estado correcto.`
         },
         response
       };
     }
 
-    console.info(`[Ejecutar preparación] Fin: ${stage}`, response);
     return response;
   }
 
@@ -228,22 +178,11 @@ export class Topbar {
     this.currentPipelineStage = stage;
     this.executionUiStateChange.emit({
       status: 'running',
-      title: 'Ejecutando preparación...',
+      title: 'Ejecutando preparacion...',
       stage,
       progress,
       detail
     });
-  }
-
-  private async postPipelineStep<T>(url: string, payload: { case_path: string }): Promise<T> {
-    return firstValueFrom(this.http.post<T>(url, payload));
-  }
-
-  private async getCaseStatus(casePath: string): Promise<CaseStatusResponse> {
-    return this.postPipelineStep<CaseStatusResponse>(
-      `${this.apiUrl}/case/status`,
-      { case_path: casePath }
-    );
   }
 
   private hasOkStatus(response: PipelineStepResponse): boolean {
