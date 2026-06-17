@@ -203,7 +203,7 @@ Si has levantado el modo recomendado con WindNinja, puedes usar el mismo comando
 
 ## Estado
 
-Version 1.1.0 - Entorno Docker reproducible para backend y frontend.
+Version 1.2.0 - Entorno Docker reproducible para backend y frontend.
 
 ---
 
