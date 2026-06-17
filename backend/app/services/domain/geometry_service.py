@@ -1,5 +1,6 @@
 import geopandas as gpd
 import numpy as np
+from pathlib import Path
 from shapely.geometry import Point, Polygon
 
 from app.services.domain.reprojection_service import ensure_25830_crs
@@ -35,6 +36,11 @@ def add_matches(arr, mask, label, pts, labels):
     for fid, vidx, x, y in arr[mask]:
         pts.append(Point(float(x), float(y)))
         labels.append((label, int(fid), int(vidx), float(x), float(y)))
+
+
+def _ensure_output_parent(path):
+    if path is not None:
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
 
 
 def preprocess_geometry(cfg):
@@ -81,6 +87,7 @@ def preprocess_geometry(cfg):
     out_gdf = out_gdf.drop_duplicates(subset=["x", "y"]).reset_index(drop=True)
 
     # --- Exportar a Shapefile ---
+    _ensure_output_parent(cfg.out_shp)
     out_gdf.to_file(cfg.out_shp, driver="ESRI Shapefile", encoding="UTF-8")
 
     # rows: lista de tuplas (fid, vidx, x, y)
@@ -106,6 +113,7 @@ def preprocess_geometry(cfg):
         crs="EPSG:25830"
     )
 
+    _ensure_output_parent(cfg.out_rec_shp)
     rect_gdf.to_file(cfg.out_rec_shp, driver="ESRI Shapefile", encoding="UTF-8")
 
     w = maxx - minx
@@ -142,6 +150,7 @@ def preprocess_geometry(cfg):
         crs="EPSG:25830"
     )
 
+    _ensure_output_parent(cfg.out_rec_exp_shp)
     out.to_file(cfg.out_rec_exp_shp, driver="ESRI Shapefile", encoding="UTF-8")
 
     return {

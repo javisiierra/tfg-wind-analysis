@@ -1,6 +1,7 @@
 import subprocess
 import shutil
 import os
+from pathlib import Path
 
 from app.utils.geo import utm_rect_to_fetch_dem_bbox
 
@@ -24,6 +25,9 @@ def fetch_dem_from_bounds(cfg, minx2, miny2, maxx2, maxy2):
             "Reconstruye el backend con WindNinja/fetch_dem: "
             "docker compose -f docker-compose.yml -f docker-compose.windninja.yml up --build"
         )
+
+    if cfg.out_mdt_tif is not None:
+        Path(cfg.out_mdt_tif).parent.mkdir(parents=True, exist_ok=True)
 
     cmd = [
         fetch_dem_bin,
