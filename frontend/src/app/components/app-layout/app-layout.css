@@ -1,7 +1,7 @@
 :host {
   display: block;
   width: 100vw;
-  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   background: #020617;
   color: #0f172a;
@@ -9,10 +9,10 @@
 
 .app-shell {
   width: 100vw;
-  height: 100vh;
+  height: 100dvh;
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
-  grid-template-rows: 56px minmax(0, 1fr) 112px;
+  grid-template-rows: 56px minmax(0, 1fr) 64px;
   grid-template-areas:
     "header header"
     "sidebar main"
@@ -65,8 +65,8 @@
   grid-area: bottom;
   display: grid;
   grid-template-columns: minmax(280px, 1.7fr) minmax(220px, 1.2fr) minmax(140px, 0.7fr) minmax(150px, 0.8fr);
-  gap: 8px;
-  padding: 10px;
+  gap: 7px;
+  padding: 7px 10px;
   background: #020617;
   color: #e2e8f0;
   border-top: 1px solid #1e293b;
@@ -75,7 +75,8 @@
 
 .panel-section {
   min-width: 0;
-  padding: 9px 10px;
+  min-height: 0;
+  padding: 6px 10px;
   background: #0f172a;
   border: 1px solid #1e293b;
   border-radius: 8px;
@@ -84,8 +85,9 @@
 
 .panel-label {
   display: block;
-  margin-bottom: 2px;
+  margin-bottom: 1px;
   font-size: 10px;
+  line-height: 1.1;
   color: #94a3b8;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -93,8 +95,8 @@
 
 .panel-section strong {
   display: block;
-  font-size: 13px;
-  line-height: 1.25;
+  font-size: 12px;
+  line-height: 1.2;
   color: #f8fafc;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -103,9 +105,9 @@
 
 .panel-detail {
   display: block;
-  margin-top: 3px;
-  font-size: 12px;
-  line-height: 1.35;
+  margin-top: 1px;
+  font-size: 11px;
+  line-height: 1.15;
   color: #cbd5e1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -114,7 +116,7 @@
 
 @media (max-width: 900px) {
   .app-shell {
-    grid-template-rows: 56px minmax(0, 1fr) 150px;
+    grid-template-rows: 56px minmax(0, 1fr) 88px;
   }
 
   .app-bottom-panel {
