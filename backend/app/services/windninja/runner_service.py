@@ -14,10 +14,7 @@ from app.services.windninja.command_builder import (
 def run_windninja(cfg):
     base = Path(cfg.general_path)
 
-    wind_ninja_exe = os.getenv(
-        "WINDNINJA_CLI",
-        r"C:\WindNinja\WindNinja-3.12.1\bin\WindNinja_cli",
-    )
+    wind_ninja_exe = os.getenv("WINDNINJA_CLI", "WindNinja_cli")
     wind_ninja_path = Path(wind_ninja_exe)
 
     if wind_ninja_path.is_absolute():
@@ -29,9 +26,10 @@ def run_windninja(cfg):
         raise FileNotFoundError(
             "No se encontró WindNinja_cli dentro del entorno donde corre el backend. "
             f"Valor actual de WINDNINJA_CLI: {wind_ninja_exe}. "
-            "Si estás usando Docker, la instalación de Windows no está disponible dentro "
-            "del contenedor Linux: instala WindNinja para Linux en la imagen backend o usa "
-            "una imagen que ya incluya el ejecutable."
+            "Si usas Docker, asegúrate de levantar el proyecto con docker-compose.windninja.yml "
+            "o de construir el backend con backend/Dockerfile.windninja. "
+            "Si ejecutas el backend fuera de Docker, configura WINDNINJA_CLI con la ruta real "
+            "del ejecutable WindNinja_cli."
         )
 
     wx_station_filename = join_base(base, cfg.in_weather_file)
@@ -130,9 +128,6 @@ def run_windninja(cfg):
         dem_out = [p for p in dem_dir.glob("*") if p.is_file()]
         print("\nCarpeta DEM:", dem_dir)
         print("Ficheros (muestra):", [p.name for p in dem_out[:20]])
-
-        # IMPORTANTE: deja desactivado el borrado hasta verificar salidas reales
-        # time.sleep(3); delete_format_files(path_output)
 
     print(" ")
     print("Print Results")

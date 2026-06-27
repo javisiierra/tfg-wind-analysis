@@ -82,12 +82,12 @@ describe('MapComponent', () => {
 
     const html = tooltips.buildTooltipHtml(feature, 'worst');
 
-    expect(html).toContain('Vano cr&iacute;tico');
-    expect(html).toContain('Tramo: AP-5 &rarr; AP-6');
-    expect(html).toContain('Direcci&oacute;n: 250.74&deg;');
+    expect(html).toContain('Vano crítico');
+    expect(html).toContain('Tramo: AP-5 → AP-6');
+    expect(html).toContain('Dirección: 250.74°');
     expect(html).toContain('Velocidad viento: 8.57 m/s');
-    expect(html).toContain('Componente perpendicular m&iacute;nima: 1.23 m/s');
-    expect(html).toContain('&Aacute;ngulo relativo: 12.35&deg;');
+    expect(html).toContain('Componente perpendicular mínima: 1.23 m/s');
+    expect(html).toContain('Ángulo relativo: 12.35°');
     expect(html).toContain('Motivo: Menor componente perpendicular sobre el vano entre escenarios WindNinja');
   });
 
@@ -100,7 +100,7 @@ describe('MapComponent', () => {
       wind_speed: 8.567,
       critical_metric: 1.234,
       angle_relative: 12.345,
-      associated_span_label: 'AP-5 &rarr; AP-6',
+      associated_span_label: 'AP-5 → AP-6',
       critical_reason: 'Menor componente perpendicular sobre el vano entre escenarios WindNinja',
     });
 
@@ -108,10 +108,10 @@ describe('MapComponent', () => {
 
     expect(html).toContain('Identificador: AP-6');
     expect(html).toContain('Orden: 6');
-    expect(html).toContain('Vano asociado: AP-5 &rarr; AP-6');
+    expect(html).toContain('Vano asociado: AP-5 → AP-6');
     expect(html).toContain('Velocidad viento: 8.57 m/s');
-    expect(html).toContain('Componente perpendicular m&iacute;nima: 1.23 m/s');
-    expect(html).toContain('&Aacute;ngulo relativo: 12.35&deg;');
+    expect(html).toContain('Componente perpendicular mínima: 1.23 m/s');
+    expect(html).toContain('Ángulo relativo: 12.35°');
     expect(html).not.toContain('Motivo:');
   });
 

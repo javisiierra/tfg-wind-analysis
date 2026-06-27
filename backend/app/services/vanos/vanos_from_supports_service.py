@@ -155,7 +155,6 @@ def generate_vanos_from_supports(
                 "to_support": _support_identifier(to_row, to_order),
                 "from_order": from_order,
                 "to_order": to_order,
-                # SHP limits field names to 10 chars; the layer adapter exposes direction_deg.
                 "direction": float(direction),
                 "geometry": LineString([p1, p2]),
             }

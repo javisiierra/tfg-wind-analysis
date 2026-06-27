@@ -18,7 +18,7 @@ def build_line_profile_df(
     col_z: str = "Z",
     matricula: str = "Structure Comment",
 ) -> pd.DataFrame:
-    # --- Lectura y parseo ---
+    # Lectura y parseo
     xlsx_path = cfg.in_xlsx
     df = pd.read_excel(xlsx_path, engine="openpyxl")
     df.columns = [str(c).strip() for c in df.columns]
@@ -29,13 +29,13 @@ def build_line_profile_df(
     work["z_m"] = work[col_z].apply(lambda v: parse_xyz_with_autoscale(v, "z"))
     work = work[np.isfinite(work["x_m"]) & np.isfinite(work["y_m"]) & np.isfinite(work["z_m"])].reset_index(drop=True)
 
-    # --- Distancia acumulada en planta y perfil ---
+    # Distancia acumulada en planta y perfil
     dx = work["x_m"].diff()
     dy = work["y_m"].diff()
     work["d_xy_m"] = np.sqrt(dx**2 + dy**2).fillna(0.0)
     work["s_xy_m"] = work["d_xy_m"].cumsum()
 
-    # Labeling
+    # Generar la columna identificadora de apoyos
     label_col = "Structure Comment" if "Structure Comment" in work.columns else ("Structure" if "Structure" in work.columns else None)
     work["apoyo"] = work[label_col].astype(str).str.strip() if label_col else [f"{i+1}" for i in range(len(work))]
 

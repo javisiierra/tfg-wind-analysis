@@ -10,10 +10,6 @@ import pandas as pd
 # Si tus ficheros terminan exactamente en _vel.asc / _vel.prj (sin 100m_):
 SUFFIX_RE = re.compile(r"(_(?:ang|cld|vel)\.(?:asc|prj))$", re.IGNORECASE)
 
-# Si en realidad terminan como _100m_vel.asc / _100m_vel.prj y quieres conservar "100m_",
-# comenta la línea anterior y usa esta:
-# SUFFIX_RE = re.compile(r"(_[^_]*?(?:ang|cld|vel)\.(?:asc|prj))$", re.IGNORECASE)
-
 EXPECTED_SUFFIXES = {
     "_ang.asc", "_ang.prj",
     "_cld.asc", "_cld.prj",

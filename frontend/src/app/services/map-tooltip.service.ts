@@ -63,9 +63,9 @@ export class MapTooltipService {
       const direction = props['direction_deg'] ?? props['wind_direction'];
 
       return `
-        <strong>Vano cr&iacute;tico</strong><br>
+        <strong>Vano crítico</strong><br>
         Tramo: ${this.normalizer.getCriticalSpanLabel(props) ?? id}<br>
-        ${direction !== undefined ? `Direcci&oacute;n: ${this.formatNumber(direction)}&deg;<br>` : ''}
+        ${direction !== undefined ? `Dirección: ${this.formatNumber(direction)}°<br>` : ''}
         ${this.buildWindMetricsHtml(props)}
         ${this.buildCriticalReasonHtml(props)}
       `;
@@ -75,8 +75,8 @@ export class MapTooltipService {
       const order = feature.get('support_order');
       const total = feature.get('support_total');
       const endpointText =
-        order === 1 ? '<br><strong>Inicio de l&iacute;nea</strong>' :
-        order === total ? '<br><strong>Final de l&iacute;nea</strong>' :
+        order === 1 ? '<br><strong>Inicio de línea</strong>' :
+        order === total ? '<br><strong>Final de línea</strong>' :
         '';
       const spanLabel = this.normalizer.getCriticalSpanLabel(feature.getProperties());
 
@@ -91,7 +91,7 @@ export class MapTooltipService {
     }
 
     if (tooltipLayer === 'dominio') {
-      return `<strong>Dominio de simulaci&oacute;n</strong>`;
+      return `<strong>Dominio de simulación</strong>`;
     }
 
     return '';
@@ -104,8 +104,8 @@ export class MapTooltipService {
 
     return `
         ${windSpeed !== undefined ? `Velocidad viento: ${this.formatNumber(windSpeed)} m/s<br>` : ''}
-        ${vperpMin !== undefined ? `Componente perpendicular m&iacute;nima: ${this.formatNumber(vperpMin)} m/s<br>` : ''}
-        ${relativeAngle !== undefined ? `&Aacute;ngulo relativo: ${this.formatNumber(relativeAngle)}&deg;<br>` : ''}
+        ${vperpMin !== undefined ? `Componente perpendicular mínima: ${this.formatNumber(vperpMin)} m/s<br>` : ''}
+        ${relativeAngle !== undefined ? `Ángulo relativo: ${this.formatNumber(relativeAngle)}°<br>` : ''}
       `;
   }
 

@@ -796,12 +796,12 @@ def test_run_windninja_requires_canonical_domain(client, monkeypatch, tmp_path):
 
 
 def test_run_windninja_failure_does_not_call_postprocess(client, monkeypatch, tmp_path):
-    import app.scripts.run_local_pipeline as local_pipeline
+    import app.services.pipeline.stages as pipeline_stages
 
     cfg = _windninja_cfg(tmp_path)
     called = {"rename": 0, "worst": 0, "rose": 0}
     monkeypatch.setattr(pipeline, "load_cfg_from_case_or_raise", lambda _: cfg)
-    monkeypatch.setattr(local_pipeline, "run_windninja_stage", lambda _cfg: _windninja_result(returncode=2))
+    monkeypatch.setattr(pipeline_stages, "run_windninja_stage", lambda _cfg: _windninja_result(returncode=2))
     monkeypatch.setattr(pipeline, "_run_rename_for_cfg", lambda _cfg: called.__setitem__("rename", called["rename"] + 1))
     monkeypatch.setattr(pipeline, "_run_worst_supports_for_cfg", lambda _cfg, top_n=4: called.__setitem__("worst", called["worst"] + 1))
     monkeypatch.setattr(pipeline, "_run_wind_rose_for_cfg", lambda _cfg: called.__setitem__("rose", called["rose"] + 1))
@@ -813,12 +813,12 @@ def test_run_windninja_failure_does_not_call_postprocess(client, monkeypatch, tm
 
 
 def test_run_windninja_ok_runs_rename_and_worst_supports(client, monkeypatch, tmp_path):
-    import app.scripts.run_local_pipeline as local_pipeline
+    import app.services.pipeline.stages as pipeline_stages
 
     cfg = _windninja_cfg(tmp_path)
     called = {"rename": 0, "worst": 0, "rose": 0}
     monkeypatch.setattr(pipeline, "load_cfg_from_case_or_raise", lambda _: cfg)
-    monkeypatch.setattr(local_pipeline, "run_windninja_stage", lambda _cfg: _windninja_result())
+    monkeypatch.setattr(pipeline_stages, "run_windninja_stage", lambda _cfg: _windninja_result())
 
     def _rename(_cfg):
         called["rename"] += 1
@@ -852,12 +852,12 @@ def test_run_windninja_ok_runs_rename_and_worst_supports(client, monkeypatch, tm
 
 
 def test_run_windninja_rename_failure_warns_and_skips_worst(client, monkeypatch, tmp_path):
-    import app.scripts.run_local_pipeline as local_pipeline
+    import app.services.pipeline.stages as pipeline_stages
 
     cfg = _windninja_cfg(tmp_path)
     called = {"worst": 0, "rose": 0}
     monkeypatch.setattr(pipeline, "load_cfg_from_case_or_raise", lambda _: cfg)
-    monkeypatch.setattr(local_pipeline, "run_windninja_stage", lambda _cfg: _windninja_result())
+    monkeypatch.setattr(pipeline_stages, "run_windninja_stage", lambda _cfg: _windninja_result())
     monkeypatch.setattr(pipeline, "_run_rename_for_cfg", lambda _cfg: (_ for _ in ()).throw(RuntimeError("rename boom")))
     monkeypatch.setattr(pipeline, "_run_worst_supports_for_cfg", lambda _cfg, top_n=4: called.__setitem__("worst", called["worst"] + 1))
     monkeypatch.setattr(pipeline, "_run_wind_rose_for_cfg", lambda _cfg: called.__setitem__("rose", called["rose"] + 1) or {"status": "ok"})
@@ -876,11 +876,11 @@ def test_run_windninja_rename_failure_warns_and_skips_worst(client, monkeypatch,
 
 
 def test_run_windninja_worst_supports_failure_warns(client, monkeypatch, tmp_path):
-    import app.scripts.run_local_pipeline as local_pipeline
+    import app.services.pipeline.stages as pipeline_stages
 
     cfg = _windninja_cfg(tmp_path)
     monkeypatch.setattr(pipeline, "load_cfg_from_case_or_raise", lambda _: cfg)
-    monkeypatch.setattr(local_pipeline, "run_windninja_stage", lambda _cfg: _windninja_result())
+    monkeypatch.setattr(pipeline_stages, "run_windninja_stage", lambda _cfg: _windninja_result())
     monkeypatch.setattr(pipeline, "_run_rename_for_cfg", lambda _cfg: {"status": "ok"})
     monkeypatch.setattr(
         pipeline,
@@ -900,11 +900,11 @@ def test_run_windninja_worst_supports_failure_warns(client, monkeypatch, tmp_pat
 
 
 def test_run_windninja_wind_rose_failure_warns(client, monkeypatch, tmp_path):
-    import app.scripts.run_local_pipeline as local_pipeline
+    import app.services.pipeline.stages as pipeline_stages
 
     cfg = _windninja_cfg(tmp_path)
     monkeypatch.setattr(pipeline, "load_cfg_from_case_or_raise", lambda _: cfg)
-    monkeypatch.setattr(local_pipeline, "run_windninja_stage", lambda _cfg: _windninja_result())
+    monkeypatch.setattr(pipeline_stages, "run_windninja_stage", lambda _cfg: _windninja_result())
     monkeypatch.setattr(pipeline, "_run_rename_for_cfg", lambda _cfg: {"status": "ok"})
     monkeypatch.setattr(pipeline, "_run_worst_supports_for_cfg", lambda _cfg, top_n=4: {"top_n": top_n, "worst": []})
     monkeypatch.setattr(
