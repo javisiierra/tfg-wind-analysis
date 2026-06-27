@@ -30,7 +30,7 @@ class DomainGenerationResult:
 
 
 class DomainGenerationService:
-    """Single authority for creating and reading canonical simulation domains."""
+    """Servicio encargado de generar y leer los archivos del dominio de simulación."""
 
     def __init__(
         self,

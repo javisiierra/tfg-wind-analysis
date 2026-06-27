@@ -86,3 +86,5 @@ def test_three_supports_generate_two_vanos_in_layers_path(tmp_path):
     assert output_geojson.exists()
     assert result["output_shp"] == str(output_shp)
     assert len(generated) == 2
+    assert "direction" in generated.columns
+    assert generated["direction"].tolist() == pytest.approx([270.0, 90.0])

@@ -101,13 +101,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
       this.canGenerateDomain = false;
       this.domainGenerationMessage = null;
     } catch (err) {
-      console.error('SelecciÃ³n de carpeta cancelada o no soportada:', err);
+      console.error('Selección de carpeta cancelada o no soportada:', err);
     }
   }
 
   onAnalysisButtonClick(): void {
     if (!this.selectedYear) {
-      this.error = 'Por favor selecciona un aÃ±o';
+      this.error = 'Por favor selecciona un año';
       return;
     }
 
@@ -126,7 +126,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       );
 
       this.progress = 5;
-      this.progressMessage = 'Preparando anÃ¡lisis...';
+      this.progressMessage = 'Preparando análisis...';
       this.etaMessage = 'Calculando tiempo estimado...';
       this.analysisStartedAtMs = Date.now();
       this.jobStatus = 'queued';
@@ -143,7 +143,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           const detail = this.dataMapper.errorDetail(err, 'Error desconocido');
-          this.error = `Error al iniciar anÃ¡lisis: ${detail}`;
+          this.error = `Error al iniciar análisis: ${detail}`;
           this.canGenerateDomain = this.jobState.isDomainMissingError(detail);
           this.isLoading = false;
           this.etaMessage = '';
@@ -172,7 +172,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.isGeneratingDomain = false;
         this.canGenerateDomain = false;
         this.error = null;
-        this.domainGenerationMessage = 'Dominio generado correctamente. Ya puedes lanzar el anÃ¡lisis meteorolÃ³gico.';
+        this.domainGenerationMessage = 'Dominio generado correctamente. Ya puedes lanzar el análisis meteorológico.';
         this.mapContextService.setCasePath(selectedPath);
         this.cdr.detectChanges();
       },
@@ -247,7 +247,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     const selectedPath = this.casePath.trim();
 
     if (!selectedPath) {
-      this.error = 'Debes seleccionar una carpeta desde el botÃ³n "Seleccionar carpeta".';
+      this.error = 'Debes seleccionar una carpeta desde el botón "Seleccionar carpeta".';
       this.canGenerateDomain = false;
       this.isLoading = false;
       this.cdr.detectChanges();
@@ -257,7 +257,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.dashboardService.getCaseStatus(selectedPath).subscribe({
       next: (status) => {
         if (!this.dataMapper.hasDomain(status)) {
-          this.error = 'El caso seleccionado no tiene dominio. Puedes generarlo automÃ¡ticamente desde apoyos.';
+          this.error = 'El caso seleccionado no tiene dominio. Puedes generarlo automáticamente desde apoyos.';
           this.canGenerateDomain = true;
           this.domainGenerationMessage = null;
           this.isLoading = false;
@@ -287,7 +287,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   private handlePollingError(err: any): void {
     this.zone.run(() => {
-      const detail = this.dataMapper.errorDetail(err, 'No se pudo consultar el estado del anÃ¡lisis.');
+      const detail = this.dataMapper.errorDetail(err, 'No se pudo consultar el estado del análisis.');
       this.error = detail;
       this.canGenerateDomain = this.jobState.isDomainMissingError(detail);
       this.isLoading = false;
@@ -353,7 +353,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private handleFailedJob(response: DashboardAsyncStatusResponse): void {
     this.polling.stopPolling();
 
-    const detail = response.error || 'El anÃ¡lisis no pudo completarse.';
+    const detail = response.error || 'El análisis no pudo completarse.';
     this.error = detail;
     this.canGenerateDomain = this.jobState.isDomainMissingError(detail);
     this.isLoading = false;

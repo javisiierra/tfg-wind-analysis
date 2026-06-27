@@ -12,7 +12,7 @@
   height: 100vh;
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
-  grid-template-rows: 56px minmax(0, 1fr) 82px;
+  grid-template-rows: 56px minmax(0, 1fr) 112px;
   grid-template-areas:
     "header header"
     "sidebar main"
@@ -64,9 +64,9 @@
 .app-bottom-panel {
   grid-area: bottom;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: minmax(280px, 1.7fr) minmax(220px, 1.2fr) minmax(140px, 0.7fr) minmax(150px, 0.8fr);
   gap: 8px;
-  padding: 8px 10px;
+  padding: 10px;
   background: #020617;
   color: #e2e8f0;
   border-top: 1px solid #1e293b;
@@ -75,10 +75,11 @@
 
 .panel-section {
   min-width: 0;
-  padding: 7px 10px;
+  padding: 9px 10px;
   background: #0f172a;
   border: 1px solid #1e293b;
-  border-radius: 9px;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .panel-label {
@@ -92,7 +93,8 @@
 
 .panel-section strong {
   display: block;
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 1.25;
   color: #f8fafc;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -101,11 +103,21 @@
 
 .panel-detail {
   display: block;
-  margin-top: 2px;
-  font-size: 11px;
-  line-height: 1.2;
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.35;
   color: #cbd5e1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    grid-template-rows: 56px minmax(0, 1fr) 150px;
+  }
+
+  .app-bottom-panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }

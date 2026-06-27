@@ -50,6 +50,17 @@ node_modules/
 dist/
 .angular/
 coverage/
+frontend/out-tsc/
+frontend/bazel-out/
+frontend/npm-debug.log
+frontend/yarn-error.log
+frontend/.sass-cache/
+frontend/connect.lock
+frontend/libpeerconnection.log
+frontend/testem.log
+frontend/typings/
+frontend/__screenshots__/
+frontend/.history/
 
 # Angular test artifacts
 *.tsbuildinfo

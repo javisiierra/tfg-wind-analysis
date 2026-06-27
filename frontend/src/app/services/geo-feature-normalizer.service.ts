@@ -127,14 +127,14 @@ export class GeoFeatureNormalizer {
   getCriticalSpanLabel(props: Record<string, any>): string | undefined {
     const explicitLabel = this.pickProperty(props, ['associated_span_label', 'span_label']);
     if (explicitLabel !== undefined) {
-      return String(explicitLabel).replace(' -> ', ' &rarr; ');
+      return String(explicitLabel).replace(' -> ', ' → ');
     }
 
     const fromSupport = props['from_support'];
     const toSupport = props['to_support'];
 
     if (fromSupport !== undefined && toSupport !== undefined) {
-      return `${fromSupport} &rarr; ${toSupport}`;
+      return `${fromSupport} → ${toSupport}`;
     }
 
     const mat = this.pickProperty(props, ['MAT', 'mat']);
