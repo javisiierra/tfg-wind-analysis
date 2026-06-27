@@ -35,31 +35,37 @@
   <section class="app-bottom-panel">
     <div class="panel-section">
       <span class="panel-label">Estado</span>
-      <strong>{{ executionUiState.title }}</strong>
-      <span *ngIf="executionUiState.progress !== undefined" class="panel-detail">
-        Progreso: {{ executionUiState.progress }}%
-      </span>
-      <span *ngIf="executionUiState.stage" class="panel-detail">
-        Última etapa: {{ executionUiState.stage }}
-      </span>
-      <span *ngIf="executionUiState.detail" class="panel-detail">
-        Detalle: {{ executionUiState.detail }}
+      <strong [title]="executionUiState.detail || executionUiState.title">{{ executionUiState.title }}</strong>
+      <span
+        *ngIf="executionUiState.progress !== undefined || executionUiState.stage"
+        class="panel-detail"
+        [title]="(executionUiState.progress !== undefined ? 'Progreso: ' + executionUiState.progress + '%. ' : '') + (executionUiState.stage ? 'Ultima etapa: ' + executionUiState.stage + '. ' : '') + (executionUiState.detail || '')"
+      >
+        <ng-container *ngIf="executionUiState.progress !== undefined">
+          Progreso: {{ executionUiState.progress }}%
+        </ng-container>
+        <ng-container *ngIf="executionUiState.progress !== undefined && executionUiState.stage">
+          -
+        </ng-container>
+        <ng-container *ngIf="executionUiState.stage">
+          {{ executionUiState.stage }}
+        </ng-container>
       </span>
     </div>
 
     <div class="panel-section">
       <span class="panel-label">Caso activo</span>
-      <strong>{{ casePath || 'Sin caso seleccionado' }}</strong>
+      <strong [title]="casePath || 'Sin caso seleccionado'">{{ casePath || 'Sin caso seleccionado' }}</strong>
     </div>
 
     <div class="panel-section">
       <span class="panel-label">Capa activa</span>
-      <strong>{{ selectedLayer || 'Ninguna' }}</strong>
+      <strong [title]="selectedLayer || 'Ninguna'">{{ selectedLayer || 'Ninguna' }}</strong>
     </div>
 
     <div class="panel-section">
       <span class="panel-label">Apoyos dibujados</span>
-      <strong>{{ drawnGeometries.length ? drawnGeometries.length + ' apoyos' : 'No definido' }}</strong>
+      <strong [title]="drawnGeometries.length ? drawnGeometries.length + ' apoyos' : 'No definido'">{{ drawnGeometries.length ? drawnGeometries.length + ' apoyos' : 'No definido' }}</strong>
     </div>
   </section>
 </div>

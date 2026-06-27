@@ -85,7 +85,7 @@ def _find_direction_field(columns):
         "direccio",
         "direction",
         "bearing",
-        "azimuth",
+        "azimuth",  #ángulo horizontal  que generalmente es el Norte
         "angle",
         "angulo",
         "dir",
@@ -105,6 +105,31 @@ def _find_direction_field(columns):
                 return columns[i]
 
     return None
+
+
+def _direction_from_linestring(geom) -> float:
+    if geom is None or geom.is_empty:
+        return np.nan
+
+    line = geom
+    if line.geom_type == "MultiLineString":
+        line = max(line.geoms, key=lambda part: part.length)
+
+    if line.geom_type != "LineString":
+        return np.nan
+
+    coords = list(line.coords)
+    if len(coords) < 2:
+        return np.nan
+
+    x1, y1 = coords[0][:2]
+    x2, y2 = coords[-1][:2]
+    dx = x2 - x1
+    dy = y2 - y1
+    if dx == 0 and dy == 0:
+        return np.nan
+
+    return float((np.degrees(np.arctan2(dx, dy)) + 360.0) % 360.0)
 
 
 def _value_from_row(row, candidates):
@@ -236,6 +261,10 @@ def compute_worst_supports(cfg, top_n: int = 4) -> dict[str, Any]:
 
     direction_field = _find_direction_field(gdf.columns)
     if direction_field is None:
+        gdf = gdf.copy()
+        direction_field = "__direction"
+        gdf[direction_field] = [_direction_from_linestring(geom) for geom in gdf.geometry]
+    if direction_field is None:
         raise KeyError(
             f"No existe columna de dirección compatible en vanos. Columnas: {list(gdf.columns)}"
         )
@@ -282,7 +311,7 @@ def compute_worst_supports(cfg, top_n: int = 4) -> dict[str, Any]:
             row = gdf.iloc[i]
             from_order = _value_from_row(row, ["from_idx", "from_order", "from_ord", "from", "from_ap"])
             to_order = _value_from_row(row, ["to_idx", "to_order", "to_ord", "to", "to_ap"])
-            from_support = _support_label(_value_from_row(row, ["from_ap", "from_support", "from_supp"]), from_order)
+            from_support = _support_label(_value_from_row(row, ["from_ap", "from_support", "from_suppo", "from_supp"]), from_order)
             to_support = _support_label(_value_from_row(row, ["to_ap", "to_support", "to_supp"]), to_order)
             span_label = (
                 f"{from_support} -> {to_support}"

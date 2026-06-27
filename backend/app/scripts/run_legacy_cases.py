@@ -2,9 +2,11 @@ from pathlib import Path
 import traceback
 
 from app.core.config import load_config_toml
-from scripts.run_local_pipeline import run_full_pipeline
+from app.services.pipeline.stages import run_full_pipeline
 
 
+# LEGACY: ejecuta por lotes el pipeline antiguo basado en TOML,
+# apoyos importados desde Excel, vanos, perfiles y escenarios.
 CONFIGS_DIR = Path("configs")
 CONFIG_PATTERN = "*.toml"
 

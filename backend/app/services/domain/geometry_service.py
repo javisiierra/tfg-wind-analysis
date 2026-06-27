@@ -3,7 +3,14 @@ import numpy as np
 from pathlib import Path
 from shapely.geometry import Point, Polygon
 
-from app.services.domain.reprojection_service import ensure_25830_crs
+
+def ensure_25830_crs(gdf):
+    if gdf.crs is None:
+        gdf = gdf.set_crs(epsg=25830)
+    elif gdf.crs.to_epsg() != 25830:
+        gdf = gdf.to_crs(epsg=25830)
+
+    return gdf
 
 
 def iter_coords(geom):

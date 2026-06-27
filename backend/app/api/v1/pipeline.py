@@ -28,7 +28,7 @@ from app.services.vanos.vanos_from_supports_service import (
     find_existing_vanos_path,
     generate_vanos_from_supports as generate_vanos_from_supports_service,
 )
-from app.scripts.run_local_pipeline import (
+from app.services.pipeline.stages import (
     run_generate_scenarios,
     run_geometry_and_dem,
     run_line_profile,
@@ -895,7 +895,7 @@ def run_windninja_api(request: PipelineRequest):
         )
 
     try:
-        from app.scripts.run_local_pipeline import run_windninja_stage
+        from app.services.pipeline.stages import run_windninja_stage
 
         result = run_windninja_stage(cfg)
 

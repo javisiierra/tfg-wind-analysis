@@ -15,7 +15,7 @@ def first_point_xy_station(shp_path: Union[str, Path]) -> Tuple[str, float, floa
     Devuelve (station_name, x, y) del primer punto (primer registro) de un shapefile .shp de puntos,
     tomando station_name del atributo 'Structure'.
 
-    Parameters
+    Parametros
     ----------
     shp_path : str | Path
         Ruta al fichero .shp.

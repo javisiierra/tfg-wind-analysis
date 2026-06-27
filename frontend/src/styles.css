@@ -1,3 +1,5 @@
+@import "ol/ol.css";
+
 html,
 body {
   margin: 0;
@@ -10,4 +12,74 @@ body {
 
 * {
   box-sizing: border-box;
+}
+
+.map-wrapper .ol-control {
+  background: rgba(15, 23, 42, 0.12);
+  border-radius: 8px;
+  padding: 3px;
+  backdrop-filter: blur(8px);
+}
+
+.map-wrapper .ol-zoom {
+  top: 12px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.map-wrapper .ol-rotate {
+  top: 94px;
+  left: 12px;
+  right: auto;
+}
+
+.map-wrapper .ol-control button {
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #0f172a;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.18);
+  cursor: pointer;
+}
+
+.map-wrapper .ol-control button:hover {
+  background: #ffffff;
+  border-color: rgba(37, 99, 235, 0.35);
+  color: #1d4ed8;
+}
+
+.map-wrapper .ol-control button:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 2px;
+}
+
+.map-wrapper .ol-attribution {
+  left: 12px;
+  right: auto;
+  bottom: 12px;
+  max-width: min(520px, calc(100% - 190px));
+  padding: 4px 7px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 8px;
+  color: #334155;
+  font-size: 12px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14);
+}
+
+.map-wrapper .ol-attribution ul {
+  margin: 0;
+}
+
+.map-wrapper .ol-attribution a {
+  color: #1d4ed8;
+  font-weight: 700;
 }

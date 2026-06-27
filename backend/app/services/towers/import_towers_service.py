@@ -43,7 +43,7 @@ def excel_to_shp(
     # Campo para etiquetar
     df["MAT"] = df[col_label].astype(str).str.strip()
 
-    # Diagnóstico rápido (puedes comentar luego)
+    # Diagnóstico rápido
     print("Rangos interpretados:")
     print("X:", df["_X"].min(), df["_X"].max())
     print("Y:", df["_Y"].min(), df["_Y"].max())
