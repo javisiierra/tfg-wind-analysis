@@ -1,6 +1,7 @@
-﻿import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideRouter } from '@angular/router';
 
 import { Topbar } from './topbar';
 import { environment } from '../../../environments/environment';
@@ -15,7 +16,7 @@ describe('Topbar', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [Topbar],
-      providers: [provideHttpClient(), provideHttpClientTesting()]
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])]
     }).compileComponents();
 
     fixture = TestBed.createComponent(Topbar);
@@ -32,28 +33,24 @@ describe('Topbar', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should render import and preparation actions', () => {
+  it('should render dashboard and preparation actions', () => {
     fixture.detectChanges();
     const text = fixture.nativeElement.textContent;
 
-    expect(text).toContain('Importar carpeta');
+    expect(text).toContain('Dashboard');
     expect(text).toContain('Ejecutar preparación');
+    expect(text).not.toContain('Importar carpeta');
     expect(text).not.toContain('Preparar caso');
   });
 
-  it('Importar carpeta should keep calling /case/import-folder', () => {
-    const completedSpy = vi.fn();
-    component.casePath = '/data/case-a';
-    component.casePrepared.subscribe(completedSpy);
+  it('Dashboard should navigate to the weather dashboard route', () => {
+    fixture.detectChanges();
 
-    component.prepareCase();
+    const dashboardLink: HTMLAnchorElement | null =
+      fixture.nativeElement.querySelector('a[routerLink="/dashboard"]');
 
-    const req = httpMock.expectOne(`${apiUrl}/case/import-folder`);
-    expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({ input_path: '/data/case-a' });
-    req.flush({ status: 'ready', case_path: '/data/case-a' });
-
-    expect(completedSpy).toHaveBeenCalledWith('/data/case-a');
+    expect(dashboardLink).toBeTruthy();
+    expect(dashboardLink?.textContent).toContain('Dashboard');
   });
 
   it('Ejecutar preparación should call modern preparation then WindNinja', async () => {
