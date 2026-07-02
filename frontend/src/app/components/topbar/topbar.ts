@@ -1,9 +1,8 @@
 import { Component, EventEmitter, Input, NgZone, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
-import { environment } from '../../../environments/environment';
 import { ExecutionUiState } from '../../models/execution-ui-state';
 import { DashboardService } from '../../services/dashboard.service';
 
@@ -15,7 +14,7 @@ type PipelineStepResponse = Record<string, unknown> & {
 @Component({
   selector: 'app-topbar',
   standalone: true,
-  imports: [FormsModule, CommonModule],
+  imports: [FormsModule, CommonModule, RouterLink],
   templateUrl: './topbar.html',
   styleUrl: './topbar.css',
 })
@@ -24,10 +23,8 @@ export class Topbar {
   @Input() isExecutionRunning = false;
 
   private readonly baseCasesPath = '/data';
-  private readonly apiUrl = environment.apiUrl;
 
   @Output() folderSelected = new EventEmitter<string>();
-  @Output() casePrepared = new EventEmitter<string>();
   @Output() preparationCompleted = new EventEmitter<string>();
   @Output() executionUiStateChange = new EventEmitter<ExecutionUiState>();
 
@@ -37,7 +34,6 @@ export class Topbar {
   private currentPipelineStage: string | undefined;
 
   constructor(
-    private http: HttpClient,
     private dashboardService: DashboardService,
     private ngZone: NgZone
   ) {}
@@ -67,44 +63,6 @@ export class Topbar {
     } catch (err) {
       console.error('Seleccion de carpeta cancelada o no soportada:', err);
     }
-  }
-
-  prepareCase() {
-    if (!this.casePath) {
-      this.error = { message: 'Selecciona una carpeta primero' };
-      this.emitErrorState(this.error.message);
-      return;
-    }
-
-    this.loading = true;
-    this.result = null;
-    this.error = null;
-    this.executionUiStateChange.emit({
-      status: 'running',
-      title: 'Importando carpeta...',
-      stage: 'Importando carpeta',
-      detail: 'Adaptando la carpeta externa al formato del caso'
-    });
-
-    this.http.post(`${this.apiUrl}/case/import-folder`, {
-      input_path: this.casePath
-    }).subscribe({
-      next: (res) => {
-        this.result = res;
-        this.loading = false;
-        this.casePrepared.emit(this.casePath);
-        this.executionUiStateChange.emit({
-          status: 'success',
-          title: 'Listo',
-          detail: 'Carpeta importada correctamente'
-        });
-      },
-      error: (err) => {
-        this.error = err;
-        this.loading = false;
-        this.emitErrorState(this.getErrorDetail(err, 'No se pudo importar la carpeta.'));
-      }
-    });
   }
 
   async executePreparationPipeline(): Promise<void> {
