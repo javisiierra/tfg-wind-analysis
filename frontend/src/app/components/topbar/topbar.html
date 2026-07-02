@@ -20,9 +20,9 @@
       Seleccionar carpeta
     </button>
 
-    <button class="btn primary" (click)="prepareCase()" [disabled]="loading || isExecutionRunning || !casePath">
-      Importar carpeta
-    </button>
+    <a class="btn primary" routerLink="/dashboard">
+      Dashboard
+    </a>
 
     <button class="btn primary" (click)="executePreparationPipeline()" [disabled]="loading || isExecutionRunning || !casePath">
       Ejecutar preparación
